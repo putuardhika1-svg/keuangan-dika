@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Inter } from "next/font/google";
 import "./globals.css";
+import { Suspense } from 'react';
 
 // 1. IMPORT SATPAM LATAR BELAKANG
 import AutoLogout from "@/components/AutoLogout";
@@ -21,8 +22,10 @@ export default function RootLayout({
     <html lang="id">
       <body className={inter.className}>
 
-        {/* 2. AKTIFKAN SATPAM DI SINI (Berjalan senyap tanpa terlihat) */}
-        <AutoLogout />
+        {/* 2. AKTIFKAN SATPAM DI SINI (Dibungkus Suspense agar Vercel lolos) */}
+        <Suspense fallback={null}>
+          <AutoLogout />
+        </Suspense>
 
         {children}
       </body>
