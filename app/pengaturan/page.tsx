@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { supabase } from '@/utils/supabase';
-import { User, Shield, Download, Palette, ArrowLeft, Save, Loader2, Lock, Mail, Phone, Type, LogOut, CheckCircle2, Monitor, FileSpreadsheet, Sun, Moon } from 'lucide-react';
+import { User, Shield, Download, Palette, ArrowLeft, Save, Loader2, Lock, Mail, Phone, Type, LogOut, CheckCircle2, Monitor, FileSpreadsheet, Sun, Moon, CalendarDays } from 'lucide-react';
 
 export default function Pengaturan() {
     const router = useRouter();
@@ -15,15 +15,18 @@ export default function Pengaturan() {
     const [nama, setNama] = useState("");
     const [telepon, setTelepon] = useState("");
     const [passwordBaru, setPasswordBaru] = useState("");
-
     const [tema, setTema] = useState("terang");
 
     const [loading, setLoading] = useState(false);
     const [loadingEkspor, setLoadingEkspor] = useState(false);
     const [pesan, setPesan] = useState({ tipe: "", teks: "" });
 
+    // STATE BARU: Untuk filter bulan ekspor
+    const [semuaTransaksi, setSemuaTransaksi] = useState<any[]>([]);
+    const [filterBulanEkspor, setFilterBulanEkspor] = useState("Semua Waktu");
+
     useEffect(() => {
-        const ambilDataUser = async () => {
+        const ambilDataUserDanTransaksi = async () => {
             const { data: { session } } = await supabase.auth.getSession();
             if (!session) {
                 router.replace('/login');
@@ -38,9 +41,13 @@ export default function Pengaturan() {
                         document.documentElement.classList.toggle('dark', user.user_metadata.tema === 'gelap');
                     }
                 }
+
+                // Mengambil transaksi hanya untuk mendapatkan daftar bulan
+                const { data } = await supabase.from('transaksi').select('tanggal');
+                if (data) setSemuaTransaksi(data);
             }
         };
-        ambilDataUser();
+        ambilDataUserDanTransaksi();
     }, [router]);
 
     const simpanProfil = async (e: React.FormEvent) => {
@@ -76,10 +83,40 @@ export default function Pengaturan() {
         router.replace('/login');
     };
 
+    const ubahTema = async (pilihanTema: string) => {
+        setTema(pilihanTema);
+        if (pilihanTema === 'gelap') {
+            document.documentElement.classList.add('dark');
+        } else {
+            document.documentElement.classList.remove('dark');
+        }
+        await supabase.auth.updateUser({
+            data: { nama: nama, telepon: telepon, tema: pilihanTema }
+        });
+    };
+
+    // FUNGSI BANTUAN EKSTRAK BULAN
+    const getBulanTahun = (tanggalStr: string) => {
+        if (!tanggalStr) return "Lainnya";
+        const regex = /(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})/;
+        const match = tanggalStr.match(regex);
+        if (match) {
+            const bulanIndo = ["Januari", "Februari", "Maret", "April", "Mei", "Juni", "Juli", "Agustus", "September", "Oktober", "November", "Desember"];
+            return `${bulanIndo[parseInt(match[2]) - 1]} ${match[3]}`;
+        }
+        const kata = tanggalStr.split(' ');
+        if (kata.length >= 3) return `${kata[1]} ${kata[2]}`.replace(',', '');
+        return "Lainnya";
+    };
+
+    const daftarPeriode = Array.from(new Set(semuaTransaksi.map(t => getBulanTahun(t.tanggal)))).filter(p => p !== "Lainnya");
+
+    // FUNGSI EKSPOR TERBARU (DENGAN FILTER BULAN)
     const eksporKeCSV = async () => {
         setLoadingEkspor(true);
         try {
-            const { data, error } = await supabase.from('transaksi').select('*');
+            // Ambil seluruh data dulu
+            const { data, error } = await supabase.from('transaksi').select('*').order('id', { ascending: false });
             if (error) throw error;
 
             if (!data || data.length === 0) {
@@ -88,8 +125,19 @@ export default function Pengaturan() {
                 return;
             }
 
+            // Filter data sesuai pilihan dropdown
+            const dataDifilter = filterBulanEkspor === "Semua Waktu"
+                ? data
+                : data.filter((t: any) => getBulanTahun(t.tanggal) === filterBulanEkspor);
+
+            if (dataDifilter.length === 0) {
+                alert(`Tidak ada transaksi yang tercatat pada periode: ${filterBulanEkspor}`);
+                setLoadingEkspor(false);
+                return;
+            }
+
             const headers = ["ID", "Jenis", "Kategori", "Jumlah", "Keterangan (Toko)", "Tanggal", "Metode Pembayaran", "Rincian Barang", "Bukti Foto"];
-            const rows = data.map((t: any) => [
+            const rows = dataDifilter.map((t: any) => [
                 t.id,
                 t.jenis,
                 t.kategori,
@@ -105,7 +153,11 @@ export default function Pengaturan() {
             const encodedUri = encodeURI(csvContent);
             const link = document.createElement("a");
             link.setAttribute("href", encodedUri);
-            link.setAttribute("download", `laporan-keuangan-dika-${new Date().toISOString().slice(0, 10)}.csv`);
+
+            // Nama file disesuaikan dengan bulan yang dipilih
+            const labelFile = filterBulanEkspor === "Semua Waktu" ? "semua-waktu" : filterBulanEkspor.replace(' ', '-').toLowerCase();
+            link.setAttribute("download", `laporan-keuangan-dika-${labelFile}.csv`);
+
             document.body.appendChild(link);
             link.click();
             document.body.removeChild(link);
@@ -114,23 +166,6 @@ export default function Pengaturan() {
         } finally {
             setLoadingEkspor(false);
         }
-    };
-
-    // FUNGSI UTAMA: Mengubah tema secara instan
-    const ubahTema = async (pilihanTema: string) => {
-        setTema(pilihanTema);
-
-        // Menerapkan kelas 'dark' pada HTML browser secara langsung
-        if (pilihanTema === 'gelap') {
-            document.documentElement.classList.add('dark');
-        } else {
-            document.documentElement.classList.remove('dark');
-        }
-
-        // Menyimpan preferensi ke Supabase
-        await supabase.auth.updateUser({
-            data: { nama: nama, telepon: telepon, tema: pilihanTema }
-        });
     };
 
     return (
@@ -264,29 +299,52 @@ export default function Pengaturan() {
                             </div>
                         )}
 
-                        {/* --- TAB: CADANGAN --- */}
+                        {/* --- TAB: CADANGAN & EKSPOR --- */}
                         {tabAktif === "cadangan" && (
                             <div className="animate-in fade-in slide-in-from-bottom-2 space-y-6">
                                 <div>
                                     <h2 className="text-xl font-bold">Cadangan & Ekspor Data</h2>
-                                    <p className={`text-sm ${tema === 'gelap' ? 'text-slate-400' : 'text-slate-500'}`}>Unduh seluruh catatan keuangan Anda untuk arsip pribadi atau analisis.</p>
+                                    <p className={`text-sm ${tema === 'gelap' ? 'text-slate-400' : 'text-slate-500'}`}>Unduh catatan keuangan Anda untuk arsip pribadi atau analisis di Excel.</p>
                                 </div>
 
-                                <div className={`border p-5 rounded-2xl flex items-center justify-between gap-4 ${tema === 'gelap' ? 'bg-blue-950/40 border-blue-900/50' : 'bg-blue-50 border-blue-100'}`}>
+                                <div className={`border p-5 rounded-2xl flex flex-col gap-5 ${tema === 'gelap' ? 'bg-blue-950/40 border-blue-900/50' : 'bg-blue-50 border-blue-100'}`}>
+
                                     <div className="flex items-center gap-4">
                                         <div className="p-3 bg-blue-600 text-white rounded-2xl shadow-md">
                                             <FileSpreadsheet size={28} />
                                         </div>
                                         <div>
-                                            <h4 className="font-bold">Unduh Laporan (Format CSV / Excel)</h4>
-                                            <p className={`text-xs mt-0.5 ${tema === 'gelap' ? 'text-blue-300' : 'text-slate-500'}`}>Mencakup nama toko, tanggal, total nominal, rincian barang, hingga tautan foto struk.</p>
+                                            <h4 className="font-bold">Unduh Laporan Format CSV</h4>
+                                            <p className={`text-xs mt-0.5 ${tema === 'gelap' ? 'text-blue-300' : 'text-slate-500'}`}>Mencakup nama toko, tanggal, total nominal, rincian barang, dan tautan foto.</p>
                                         </div>
                                     </div>
 
-                                    <button onClick={eksporKeCSV} disabled={loadingEkspor} className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-5 rounded-xl transition-colors shadow-lg flex items-center gap-2 shrink-0 text-sm">
-                                        {loadingEkspor ? <Loader2 className="animate-spin" size={18} /> : <Download size={18} />}
-                                        {loadingEkspor ? "Memproses..." : "Unduh Laporan"}
-                                    </button>
+                                    {/* Bagian Kontrol Filter & Tombol Unduh */}
+                                    <div className="flex flex-col sm:flex-row gap-3">
+                                        <div className={`flex-1 border rounded-xl px-3 py-2 flex items-center gap-2 ${tema === 'gelap' ? 'bg-slate-900 border-slate-700' : 'bg-white border-slate-200'}`}>
+                                            <CalendarDays size={18} className="text-slate-400 shrink-0" />
+                                            <select
+                                                value={filterBulanEkspor}
+                                                onChange={(e) => setFilterBulanEkspor(e.target.value)}
+                                                className={`bg-transparent text-sm font-medium outline-none cursor-pointer w-full ${tema === 'gelap' ? 'text-white' : 'text-slate-700'}`}
+                                            >
+                                                <option value="Semua Waktu" className="text-slate-800">Semua Waktu</option>
+                                                {daftarPeriode.map(p => (
+                                                    <option key={p} value={p} className="text-slate-800">{p}</option>
+                                                ))}
+                                            </select>
+                                        </div>
+
+                                        <button
+                                            onClick={eksporKeCSV}
+                                            disabled={loadingEkspor}
+                                            className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-6 rounded-xl transition-colors shadow-lg flex items-center justify-center gap-2 text-sm shrink-0 whitespace-nowrap"
+                                        >
+                                            {loadingEkspor ? <Loader2 className="animate-spin" size={18} /> : <Download size={18} />}
+                                            {loadingEkspor ? "Memproses..." : "Unduh Laporan"}
+                                        </button>
+                                    </div>
+
                                 </div>
                             </div>
                         )}
