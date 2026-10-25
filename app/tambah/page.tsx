@@ -2,8 +2,9 @@
 
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link"; // <---
 import { supabase } from "@/utils/supabase"; 
-import { Camera, Image as ImageIcon, Loader2, Save } from "lucide-react";
+import { Camera, Image as ImageIcon, Loader2, Save, ArrowLeft } from "lucide-react"; // <---
 
 export default function TambahTransaksi() {
   const router = useRouter();
@@ -131,9 +132,22 @@ export default function TambahTransaksi() {
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900 p-4 md:p-8 text-gray-800 dark:text-gray-100">
       <div className="max-w-xl mx-auto bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 overflow-hidden">
         
-        <div className="p-6 border-b border-gray-100 dark:border-gray-700">
-          <h1 className="text-2xl font-bold">Tambah Transaksi</h1>
-          <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">Catat aktivitas keuangan Anda hari ini.</p>
+        <div className="p-6 border-b border-gray-100 dark:border-gray-700 flex items-start gap-4">
+          
+          {/* Ini adalah tombol panah kembalinya */}
+          <Link 
+            href="/" 
+            className="p-2 -ml-2 rounded-full text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-700 dark:text-gray-400 transition-colors mt-0.5"
+          >
+            <ArrowLeft className="w-5 h-5" />
+          </Link>
+
+          {/* Ini judul yang lama, sekarang posisinya di sebelah kanan panah */}
+          <div>
+            <h1 className="text-2xl font-bold">Tambah Transaksi</h1>
+            <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">Catat aktivitas keuangan Anda hari ini.</p>
+          </div>
+          
         </div>
 
         <div className="p-6 bg-blue-50/50 dark:bg-blue-900/20 border-b border-gray-100 dark:border-gray-700">

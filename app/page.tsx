@@ -5,8 +5,7 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { supabase } from '@/utils/supabase';
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip as ChartTooltip, Legend } from 'recharts';
-import { Plus, X, Receipt, Image as ImageIcon, CreditCard, Calendar, Wallet, ArrowDownCircle, ArrowUpCircle, LogOut, User, Shield, Download, Palette, HandCoins, Landmark, CalendarDays } from 'lucide-react';
-
+import { Plus, X, Receipt, Image as ImageIcon, CreditCard, Calendar, Wallet, ArrowDownCircle, ArrowUpCircle, LogOut, User, Shield, Download, Palette, HandCoins, Landmark, CalendarDays, Trash2 } from 'lucide-react';
 export default function Home() {
   const router = useRouter();
 
@@ -64,6 +63,21 @@ export default function Home() {
 
   const formatRupiah = (angka: number) => {
     return new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(angka);
+  };
+
+  const hapusTransaksi = async (id: string) => {
+    const konfirmasi = window.confirm("Yakin ingin menghapus transaksi ini?");
+    if (!konfirmasi) return;
+
+    try {
+      const { error } = await supabase.from('transaksi').delete().eq('id', id);
+      if (error) throw error;
+
+      setTransaksiTerpilih(null); // Tutup laci modal
+      fetchData(); // Refresh data transaksi dari database
+    } catch (error: any) {
+      alert("Gagal menghapus data: " + error.message);
+    }
   };
 
   // --- FUNGSI EKSTRAK BULAN DARI TANGGAL ---
@@ -296,10 +310,23 @@ export default function Home() {
           <div className={`w-full md:w-[450px] h-full shadow-2xl flex flex-col animate-in slide-in-from-right duration-300 ${isDarkMode ? 'bg-slate-800 text-white' : 'bg-white text-slate-800'}`}>
             <div className={`flex justify-between items-center p-6 border-b ${isDarkMode ? 'border-slate-700' : 'border-slate-100'}`}>
               <h2 className="text-xl font-bold">Detail Transaksi</h2>
-              <button onClick={() => setTransaksiTerpilih(null)} className={`p-2 rounded-full transition-colors ${isDarkMode ? 'bg-slate-700 text-slate-200 hover:bg-slate-600' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}>
-                <X size={20} />
-              </button>
+
+              {/* Ini adalah bungkus baru agar tombol Hapus dan X bisa bersebelahan */}
+              <div className="flex items-center gap-2">
+
+                {/* Tombol Hapus (Tong Sampah Merah) */}
+                <button onClick={() => hapusTransaksi(transaksiTerpilih.id)} className={`p-2 rounded-full transition-colors text-red-500 hover:text-red-700 ${isDarkMode ? 'hover:bg-red-900/30' : 'hover:bg-red-50'}`}>
+                  <Trash2 size={20} />
+                </button>
+
+                {/* Tombol Silang (X) yang lama */}
+                <button onClick={() => setTransaksiTerpilih(null)} className={`p-2 rounded-full transition-colors ${isDarkMode ? 'bg-slate-700 text-slate-200 hover:bg-slate-600' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}>
+                  <X size={20} />
+                </button>
+
+              </div>
             </div>
+
             <div className="p-6 overflow-y-auto flex-1 space-y-6">
               <div className={`text-center p-6 rounded-2xl border ${isDarkMode ? 'bg-slate-900 border-slate-700' : 'bg-slate-50 border-slate-100'}`}>
                 <p className="text-slate-400 mb-1">{transaksiTerpilih.keterangan}</p>
