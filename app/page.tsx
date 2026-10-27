@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { supabase } from '@/utils/supabase';
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip as ChartTooltip, Legend } from 'recharts';
-import { Plus, X, Receipt, Image as ImageIcon, CreditCard, Calendar, Wallet, ArrowDownCircle, ArrowUpCircle, LogOut, User, Shield, Download, Palette, HandCoins, Landmark, CalendarDays, Trash2, Edit2, Save, PlusCircle } from 'lucide-react';
+import { Plus, X, Receipt, Image as ImageIcon, CreditCard, Calendar, Wallet, ArrowDownCircle, ArrowUpCircle, LogOut, User, Shield, Download, Palette, HandCoins, Landmark, CalendarDays, Trash2, Edit2, Save, PlusCircle, Lightbulb, Send, MessageSquare } from 'lucide-react';
 
 export default function Home() {
   const router = useRouter();
@@ -15,7 +15,7 @@ export default function Home() {
 
   // STATE FILTER
   const [filterAktif, setFilterAktif] = useState("Semua");
-  const [periodeAktif, setPeriodeAktif] = useState(""); // Biarkan kosong string ("") sebagai default awal
+  const [periodeAktif, setPeriodeAktif] = useState(""); 
 
   // STATE ANGGARAN (BUDGETING) & EDIT MODE
   const [targetAnggaran, setTargetAnggaran] = useState([
@@ -24,13 +24,18 @@ export default function Home() {
   ]);
   const [isEditingAnggaran, setIsEditingAnggaran] = useState(false);
 
+  // STATE UNTUK FITUR TANYA JAWAB / SIMULASI BELI
+  const [pertanyaanUser, setPertanyaanUser] = useState("");
+  const [riwayatChat, setRiwayatChat] = useState<any[]>([
+    { sender: "bot", teks: "Halo Putu Ardhika! Ada rencana pengeluaran besar atau hal yang ingin didiskusikan terkait keuangan bulan ini? Ketik pertanyaannya di bawah ya." }
+  ]);
+
   const [sapaan, setSapaan] = useState("Halo");
   const [menuProfilBuka, setMenuProfilBuka] = useState(false);
-  const [userEmail, setUserEmail] = useState("dika@email.com");
+  const [userEmail, setUserEmail] = useState("ardhika@email.com");
   const [isDarkMode, setIsDarkMode] = useState(false);
 
   useEffect(() => {
-    // 1. Tambahkan 2 baris ini di sini
     const bulanIni = new Date().toLocaleDateString('id-ID', { month: 'long', year: 'numeric' });
     setPeriodeAktif(bulanIni);
 
@@ -56,8 +61,7 @@ export default function Home() {
 
     cekLogin();
 
-    // Memuat data anggaran dari memori browser (Local Storage)
-    const savedAnggaran = localStorage.getItem('budgetKeuanganDika');
+    const savedAnggaran = localStorage.getItem('budgetKeuanganArdhika');
     if (savedAnggaran) {
       setTargetAnggaran(JSON.parse(savedAnggaran));
     }
@@ -99,7 +103,7 @@ export default function Home() {
 
   // --- FUNGSI MANAJEMEN ANGGARAN ---
   const simpanPerubahanAnggaran = () => {
-    localStorage.setItem('budgetKeuanganDika', JSON.stringify(targetAnggaran));
+    localStorage.setItem('budgetKeuanganArdhika', JSON.stringify(targetAnggaran));
     setIsEditingAnggaran(false);
   };
 
@@ -118,6 +122,13 @@ export default function Home() {
     setTargetAnggaran(dataBaru);
   };
 
+  // --- FUNGSI RESET RIWAYAT CHAT ---
+  const resetChat = () => {
+    setRiwayatChat([
+      { sender: "bot", teks: "Halo Putu Ardhika! Riwayat percakapan telah dibersihkan. Ada rencana pengeluaran atau hal lain yang ingin didiskusikan?" }
+    ]);
+  };
+
   // --- FUNGSI EKSTRAK BULAN ---
   const getBulanTahun = (tanggalStr: string) => {
     if (!tanggalStr) return "Lainnya";
@@ -132,32 +143,23 @@ export default function Home() {
     return "Lainnya";
   };
 
-  // MENDAPATKAN DAFTAR BULAN
   const setPeriodeUnik = new Set(transaksi.map(t => getBulanTahun(t.tanggal)));
-  
-  // Memasukkan bulan saat ini ke dropdown HANYA jika state sudah siap (di-load dari useEffect)
   if (periodeAktif) {
     setPeriodeUnik.add(periodeAktif);
   }
-  
   const daftarPeriode = Array.from(setPeriodeUnik).filter(p => p !== "Lainnya");
 
-  // --- PERHITUNGAN TOTAL SALDO & FILTER (MURNI PER BULAN) ---
+  // --- PERHITUNGAN TOTAL SALDO & FILTER ---
   const totalPemasukanSemua = transaksi.filter(t => t.jenis === 'Pemasukan').reduce((a, b) => a + b.jumlah, 0);
   const totalPengeluaranSemua = transaksi.filter(t => t.jenis === 'Pengeluaran').reduce((a, b) => a + b.jumlah, 0);
   const totalHutangSemua = transaksi.filter(t => t.jenis === 'Hutang').reduce((a, b) => a + b.jumlah, 0);
   const totalPiutangSemua = transaksi.filter(t => t.jenis === 'Piutang').reduce((a, b) => a + b.jumlah, 0);
-  
-  // Saldo Kas Utama tetap menampilkan uang riil Anda saat ini (Semua waktu)
   const saldoKasUtama = (totalPemasukanSemua + totalHutangSemua) - (totalPengeluaranSemua + totalPiutangSemua);
 
-  // Filter data HANYA untuk bulan yang dipilih (Strict 1 Bulan)
   const transaksiPeriode = transaksi.filter(t => getBulanTahun(t.tanggal) === periodeAktif);
 
   const totalPemasukan = transaksiPeriode.filter(t => t.jenis === 'Pemasukan').reduce((a, b) => a + b.jumlah, 0);
   const totalPengeluaran = transaksiPeriode.filter(t => t.jenis === 'Pengeluaran').reduce((a, b) => a + b.jumlah, 0);
-  const totalHutang = transaksiPeriode.filter(t => t.jenis === 'Hutang').reduce((a, b) => a + b.jumlah, 0);
-  const totalPiutang = transaksiPeriode.filter(t => t.jenis === 'Piutang').reduce((a, b) => a + b.jumlah, 0);
 
   const dataPengeluaran = transaksiPeriode.filter(t => t.jenis === 'Pengeluaran');
   const kategoriGrup = dataPengeluaran.reduce((acc: any, curr: any) => {
@@ -171,13 +173,91 @@ export default function Home() {
   }));
   const WARNA = ['#ef4444', '#f97316', '#f59e0b', '#84cc16', '#06b6d4', '#3b82f6', '#8b5cf6'];
 
+  // --- LOGIKA REKOMENDASI BULANAN ---
+  const dapatkanRekomendasiKeuangan = () => {
+    if (transaksiPeriode.length === 0) {
+      return {
+        tipe: "info",
+        pesan: "Belum ada transaksi tercatat di bulan ini. Mulai catat pemasukan atau pengeluaran pertamamu!"
+      };
+    }
+
+    for (let anggaran of targetAnggaran) {
+      const terpakai = kategoriGrup[anggaran.kategori] || 0;
+      if (terpakai > anggaran.batas) {
+        return {
+          tipe: "bahaya",
+          pesan: `Peringatan! Anggaran kategori "${anggaran.kategori}" sudah jebol (overbudget). Coba kendalikan pengeluaran di sektor ini minggu depan.`
+        };
+      } else if (terpakai >= anggaran.batas * 0.8) {
+        return {
+          tipe: "peringatan",
+          pesan: `Hati-hati, pengeluaran "${anggaran.kategori}" sudah mencapai lebih dari 80% batas anggaran bulan ini.`
+        };
+      }
+    }
+
+    if (totalPemasukan > 0) {
+      const sisaBulanIni = totalPemasukan - totalPengeluaran;
+      const rasioTabungan = (sisaBulanIni / totalPemasukan) * 100;
+
+      if (rasioTabungan >= 30) {
+        return {
+          tipe: "sukses",
+          pesan: `Hebat, Putu Ardhika! Bulan ini kamu berhasil mengamankan sekitar ${rasioTabungan.toFixed(0)}% dari total pemasukanmu. Pertahankan manajemen kas yang sehat ini!`
+        };
+      } else if (sisaBulanIni < 0) {
+        return {
+          tipe: "bahaya",
+          pesan: "Arus kas bulan ini negatif (pengeluaran melebihi pemasukan). Periksa kembali riwayat transaksi untuk meninjau pos pengeluaran terbesar."
+        };
+      }
+    }
+
+    return {
+      tipe: "normal",
+      pesan: "Keuangan bulan ini terpantau stabil dan terkendali. Lanjutkan pencatatan rutin setiap hari!"
+    };
+  };
+
+  const rekomendasi = dapatkanRekomendasiKeuangan();
+
+  // --- LOGIKA ANALISIS TANYA JAWAB (SIMULASI PEMBELIAN / RENCANA) ---
+  const kirimPertanyaan = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!pertanyaanUser.trim()) return;
+
+    const teksInput = pertanyaanUser.toLowerCase();
+    const chatBaru = [...riwayatChat, { sender: "user", teks: pertanyaanUser }];
+    setRiwayatChat(chatBaru);
+    setPertanyaanUser("");
+
+    setTimeout(() => {
+      let jawabanBot = "";
+
+      if (teksInput.includes("motor") || teksInput.includes("beli") || teksInput.includes("harga") || teksInput.includes("cicil")) {
+        const angkaDitemukan = teksInput.match(/(\d+)/);
+        
+        if (teksInput.includes("20 juta") || teksInput.includes("20.000.000") || (angkaDitemukan && parseInt(angkaDitemukan[0]) >= 1000000)) {
+          jawabanBot = `Analisis Keuangan untuk Rencana Ini:\n- Total Kas Tersedia Anda saat ini: ${formatRupiah(saldoKasUtama)}.\n- Jika digunakan untuk pembelian besar secara tunai, kas Anda akan sangat menipis.\nSaran: Sebaiknya gunakan sistem cicilan terencana dengan alokasi maksimal 20% dari pemasukan bulanan agar anggaran rutin tetap aman.`;
+        } else {
+          jawabanBot = `Berdasarkan total kas tersedia saat ini (${formatRupiah(saldoKasUtama)}), pastikan pembelian tersebut tidak melebihi sisa tabungan bulanan Anda. Cek kembali apakah pos anggaran utama seperti makan dan transportasi sudah aman sebelum memutuskan membeli.`;
+        }
+      } else if (teksInput.includes("liburan") || teksInput.includes("jalan-jalan")) {
+        jawabanBot = `Untuk rencana liburan, pastikan Anda menggunakan sisa anggaran bulanan yang tidak terpakai. Jangan mengambil dana dari alokasi tabungan darurat atau pos wajib!`;
+      } else {
+        jawabanBot = `Halo Putu Ardhika! Berdasarkan data bulan ${periodeAktif}, total pengeluaran Anda adalah ${formatRupiah(totalPengeluaran)} dari pemasukan ${formatRupiah(totalPemasukan)}. Pastikan setiap rencana pengeluaran besar telah memperhitungkan sisa kas saat ini.`;
+      }
+
+      setRiwayatChat(prev => [...prev, { sender: "bot", teks: jawabanBot }]);
+    }, 600);
+  };
+
   const transaksiDifilter = transaksiPeriode.filter(t => {
     if (filterAktif === "Semua") return true;
     return t.jenis === filterAktif;
   });
 
-  // Karena datanya sudah fix 1 bulan, kita tidak perlu lagi memisahkan header bulannya berulang-ulang
-  // Tapi tetap kita bungkus agar UI-nya rapi
   const transaksiDikelompokkan = transaksiDifilter.reduce((acc: any, t: any) => {
     const bulanTahun = getBulanTahun(t.tanggal);
     if (!acc[bulanTahun]) {
@@ -194,19 +274,19 @@ export default function Home() {
         {/* HEADER SAPAAN & MENU PROFIL */}
         <div className="flex items-center justify-between pt-2 relative z-40">
           <div>
-            <h1 className={`text-2xl font-bold ${isDarkMode ? 'text-white' : 'text-slate-800'}`}>{sapaan}, Dika! 👋</h1>
+            <h1 className={`text-2xl font-bold ${isDarkMode ? 'text-white' : 'text-slate-800'}`}>{sapaan}, Putu Ardhika! 👋</h1>
             <p className={`text-sm ${isDarkMode ? 'text-slate-400' : 'text-slate-500'}`}>Semoga laporan keuanganmu selalu sehat.</p>
           </div>
 
           <div className="relative">
             <button onClick={() => setMenuProfilBuka(!menuProfilBuka)} className="w-12 h-12 bg-blue-100 text-blue-600 rounded-full flex items-center justify-center font-bold text-xl shadow-sm border border-blue-200 transition-transform hover:scale-105 focus:outline-none">
-              D
+              PA
             </button>
             {menuProfilBuka && <div className="fixed inset-0 z-40" onClick={() => setMenuProfilBuka(false)}></div>}
             {menuProfilBuka && (
               <div className={`absolute right-0 mt-3 w-64 rounded-2xl shadow-2xl border py-2 z-50 animate-in fade-in slide-in-from-top-2 ${isDarkMode ? 'bg-slate-800 border-slate-700 text-white' : 'bg-white border-slate-100 text-slate-800'}`}>
                 <div className={`px-4 py-3 border-b mb-2 rounded-t-2xl ${isDarkMode ? 'border-slate-700 bg-slate-900/50' : 'border-slate-100 bg-slate-50/50'}`}>
-                  <p className="text-sm font-bold">Dika / Ardika</p>
+                  <p className="text-sm font-bold">Putu Ardhika</p>
                   <p className={`text-xs truncate ${isDarkMode ? 'text-slate-400' : 'text-slate-500'}`}>{userEmail}</p>
                 </div>
                 <Link href="/pengaturan" className={`flex items-center gap-3 px-4 py-2.5 text-sm font-medium transition-colors ${isDarkMode ? 'hover:bg-slate-700 text-slate-200' : 'hover:bg-blue-50 text-slate-700 hover:text-blue-600'}`}><User size={18} className="text-slate-400" /> Profil & Akun</Link>
@@ -228,7 +308,6 @@ export default function Home() {
               <h1 className="text-4xl md:text-5xl font-bold">{formatRupiah(saldoKasUtama)}</h1>
             </div>
 
-            {/* DROPDOWN FILTER BULAN (Hanya menampilkan per bulan) */}
             <div className="flex items-center gap-2 bg-white/20 border border-white/10 rounded-xl px-3 py-2 backdrop-blur-sm">
               <CalendarDays size={18} className="text-slate-200" />
               <select
@@ -256,6 +335,86 @@ export default function Home() {
               </div>
             </div>
           </div>
+        </div>
+
+        {/* --- KOTAK REKOMENDASI / TIPS KEUANGAN CERDAS --- */}
+        <div className={`p-5 rounded-2xl border flex items-start gap-4 shadow-sm transition-all ${
+          rekomendasi.tipe === 'bahaya' 
+            ? (isDarkMode ? 'bg-red-950/30 border-red-800 text-red-200' : 'bg-red-50 border-red-200 text-red-800')
+            : rekomendasi.tipe === 'peringatan'
+            ? (isDarkMode ? 'bg-yellow-950/30 border-yellow-800 text-yellow-200' : 'bg-yellow-50 border-yellow-200 text-yellow-800')
+            : rekomendasi.tipe === 'sukses'
+            ? (isDarkMode ? 'bg-green-950/30 border-green-800 text-green-200' : 'bg-green-50 border-green-200 text-green-800')
+            : (isDarkMode ? 'bg-slate-800 border-slate-700 text-slate-200' : 'bg-blue-50/70 border-blue-100 text-blue-900')
+        }`}>
+          <div className={`p-2.5 rounded-xl mt-0.5 shrink-0 ${
+            rekomendasi.tipe === 'bahaya' ? 'bg-red-500 text-white' :
+            rekomendasi.tipe === 'peringatan' ? 'bg-yellow-500 text-white' :
+            rekomendasi.tipe === 'sukses' ? 'bg-green-500 text-white' : 'bg-blue-600 text-white'
+          }`}>
+            <Lightbulb size={20} />
+          </div>
+          <div className="flex-1">
+            <h3 className="font-bold text-sm mb-1">Tips & Rekomendasi Pintar ({periodeAktif})</h3>
+            <p className="text-sm leading-relaxed opacity-90">{rekomendasi.pesan}</p>
+          </div>
+        </div>
+
+        {/* --- KOLOM TANYA JAWAB & KONSULTASI KEUANGAN INTERAKTIF --- */}
+        <div className={`p-6 rounded-3xl shadow-sm border ${isDarkMode ? 'bg-slate-800 border-slate-700 text-white' : 'bg-white border-slate-100 text-slate-800'}`}>
+          <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center gap-2">
+              <MessageSquare size={20} className="text-blue-500" />
+              <h2 className="text-lg font-bold">Konsultasi & Simulasi Rencana</h2>
+            </div>
+            
+            {/* TOMBOL HAPUS / RESET CHAT */}
+            <button 
+              onClick={resetChat}
+              title="Bersihkan Percakapan"
+              className={`p-2 rounded-xl text-xs font-medium flex items-center gap-1 transition-colors ${
+                isDarkMode 
+                  ? 'bg-slate-700 text-red-400 hover:bg-slate-600' 
+                  : 'bg-red-50 text-red-600 hover:bg-red-100'
+              }`}
+            >
+              <Trash2 size={16} /> Hapus Chat
+            </button>
+          </div>
+
+          <p className="text-xs text-slate-400 mb-4">Ingin beli motor, elektronik, atau merencanakan anggaran khusus? Tanyakan di sini, sistem akan menganalisis berdasarkan saldo kas Anda.</p>
+
+          {/* Kotak Riwayat Percakapan */}
+          <div className={`max-h-60 overflow-y-auto space-y-3 p-4 rounded-2xl border mb-4 ${isDarkMode ? 'bg-slate-900 border-slate-700' : 'bg-slate-50 border-slate-200'}`}>
+            {riwayatChat.map((chat, idx) => (
+              <div key={idx} className={`flex ${chat.sender === 'user' ? 'justify-end' : 'justify-start'}`}>
+                <div className={`max-w-[85%] p-3 rounded-2xl text-sm whitespace-pre-line ${
+                  chat.sender === 'user' 
+                    ? 'bg-blue-600 text-white rounded-br-none' 
+                    : (isDarkMode ? 'bg-slate-800 text-slate-200 border border-slate-700 rounded-bl-none' : 'bg-white text-slate-800 border border-slate-200 rounded-bl-none shadow-sm')
+                }`}>
+                  {chat.teks}
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {/* Form Input Pertanyaan */}
+          <form onSubmit={kirimPertanyaan} className="flex gap-2">
+            <input 
+              type="text" 
+              value={pertanyaanUser}
+              onChange={(e) => setPertanyaanUser(e.target.value)}
+              placeholder="Contoh: Mau beli motor seharga 15 juta aman tidak?"
+              className={`flex-1 px-4 py-3 rounded-2xl text-sm border outline-none ${isDarkMode ? 'bg-slate-900 border-slate-700 text-white focus:border-blue-500' : 'bg-slate-50 border-slate-200 text-slate-800 focus:border-blue-500'}`}
+            />
+            <button 
+              type="submit"
+              className="bg-blue-600 hover:bg-blue-700 text-white px-5 py-3 rounded-2xl font-semibold flex items-center justify-center transition-transform hover:scale-105"
+            >
+              <Send size={18} />
+            </button>
+          </form>
         </div>
 
         {/* GRAFIK PENGELUARAN */}
@@ -298,7 +457,6 @@ export default function Home() {
           </div>
 
           {isEditingAnggaran ? (
-            /* TAMPILAN MODE EDIT */
             <div className="space-y-4 animate-in fade-in duration-300">
               {targetAnggaran.map((anggaran, index) => (
                 <div key={index} className={`flex items-center gap-3 p-3 rounded-xl border ${isDarkMode ? 'border-slate-700 bg-slate-900/50' : 'border-slate-200 bg-slate-50'}`}>
@@ -340,7 +498,6 @@ export default function Home() {
               </button>
             </div>
           ) : (
-            /* TAMPILAN MODE NORMAL (PROGRESS BAR) */
             <div className="space-y-6">
               {targetAnggaran.length === 0 ? (
                 <p className="text-center text-sm text-slate-400 py-4">Belum ada target anggaran. Klik Edit untuk menambah.</p>
