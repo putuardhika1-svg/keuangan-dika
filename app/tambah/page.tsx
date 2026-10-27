@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link"; // <---
-import { supabase } from "@/utils/supabase"; 
+import { supabase } from "@/utils/supabase";
 import { Camera, Image as ImageIcon, Loader2, Save, ArrowLeft } from "lucide-react"; // <---
 
 export default function TambahTransaksi() {
@@ -14,10 +14,10 @@ export default function TambahTransaksi() {
   const [kategori, setKategori] = useState("");
   const [nominal, setNominal] = useState("");
   const [tanggal, setTanggal] = useState("");
-  
+
   // State Baru untuk Data Tambahan dari Struk
   const [keterangan, setKeterangan] = useState(""); // Untuk Nama Toko
-  const [metodePembayaran, setMetodePembayaran] = useState(""); 
+  const [metodePembayaran, setMetodePembayaran] = useState("");
   const [detailBarang, setDetailBarang] = useState(""); // Disimpan dalam bentuk JSON string
 
   // State Loading & AI
@@ -42,7 +42,7 @@ export default function TambahTransaksi() {
 
     try {
       const { data: { session } } = await supabase.auth.getSession();
-      
+
       if (!session) {
         alert("Sesi Anda telah berakhir. Silakan login kembali.");
         router.push("/login");
@@ -54,7 +54,7 @@ export default function TambahTransaksi() {
         .from("transaksi")
         .insert([
           {
-            id: Date.now().toString(), 
+            id: Date.now().toString(),
             jenis: jenis,
             kategori: kategori,
             jumlah: parseFloat(nominal),
@@ -69,8 +69,8 @@ export default function TambahTransaksi() {
       if (error) throw error;
 
       alert("Transaksi berhasil disimpan!");
-      router.push("/"); 
-      router.refresh(); 
+      router.push("/");
+      router.refresh();
 
     } catch (error: any) {
       console.error("Gagal menyimpan transaksi:", error.message);
@@ -96,7 +96,7 @@ export default function TambahTransaksi() {
       const response = await fetch("/api/scan-struk", {
         method: "POST",
         headers: {
-          "Authorization": `Bearer ${session.access_token}` 
+          "Authorization": `Bearer ${session.access_token}`
         },
         body: formData,
       });
@@ -107,7 +107,7 @@ export default function TambahTransaksi() {
       }
 
       const data = await response.json();
-      
+
       // Auto-fill data ke state frontend
       if (data.nominal) setNominal(data.nominal.toString());
       if (data.kategori) setKategori(data.kategori);
@@ -115,9 +115,9 @@ export default function TambahTransaksi() {
       if (data.nama_toko) setKeterangan(`Belanja di ${data.nama_toko}`);
       if (data.metode_pembayaran) setMetodePembayaran(data.metode_pembayaran);
       if (data.rincian_barang) setDetailBarang(JSON.stringify(data.rincian_barang)); // Simpan array rincian sebagai teks
-      
+
       setJenis("Pengeluaran");
-      
+
       alert("Struk berhasil dipindai! Rincian barang otomatis tersimpan. Silakan periksa datanya sebelum disimpan.");
     } catch (error: any) {
       console.error("Error scanning struk:", error);
@@ -131,12 +131,12 @@ export default function TambahTransaksi() {
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900 p-4 md:p-8 text-gray-800 dark:text-gray-100">
       <div className="max-w-xl mx-auto bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 overflow-hidden">
-        
+
         <div className="p-6 border-b border-gray-100 dark:border-gray-700 flex items-start gap-4">
-          
+
           {/* Ini adalah tombol panah kembalinya */}
-          <Link 
-            href="/" 
+          <Link
+            href="/"
             className="p-2 -ml-2 rounded-full text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-700 dark:text-gray-400 transition-colors mt-0.5"
           >
             <ArrowLeft className="w-5 h-5" />
@@ -147,7 +147,7 @@ export default function TambahTransaksi() {
             <h1 className="text-2xl font-bold">Tambah Transaksi</h1>
             <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">Catat aktivitas keuangan Anda hari ini.</p>
           </div>
-          
+
         </div>
 
         <div className="p-6 bg-blue-50/50 dark:bg-blue-900/20 border-b border-gray-100 dark:border-gray-700">
@@ -164,7 +164,7 @@ export default function TambahTransaksi() {
         </div>
 
         <form onSubmit={handleSubmit} className="p-6 space-y-5">
-          
+
           <div>
             <label className="block text-sm font-medium mb-2">Jenis Transaksi</label>
             <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
