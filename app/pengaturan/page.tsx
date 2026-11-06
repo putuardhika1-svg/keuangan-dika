@@ -4,6 +4,8 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { supabase } from '@/utils/supabase';
+import { daftarPeriode, getBulanTahun, getNamaTampilan, pesanError, sanitizeCsvCell, terapkanTema, toNumber } from '@/utils/format';
+import type { Transaksi } from '@/utils/types';
 import { User, Shield, Download, Palette, ArrowLeft, Save, Loader2, Lock, Mail, Phone, Type, LogOut, CheckCircle2, Monitor, FileSpreadsheet, Sun, Moon, CalendarDays } from 'lucide-react';
 
 export default function Pengaturan() {
@@ -22,7 +24,7 @@ export default function Pengaturan() {
     const [pesan, setPesan] = useState({ tipe: "", teks: "" });
 
     // STATE BARU: Untuk filter bulan ekspor
-    const [semuaTransaksi, setSemuaTransaksi] = useState<any[]>([]);
+    const [semuaTransaksi, setSemuaTransaksi] = useState<Pick<Transaksi, "tanggal">[]>([]);
     const [filterBulanEkspor, setFilterBulanEkspor] = useState("Semua Waktu");
 
     useEffect(() => {
@@ -33,17 +35,19 @@ export default function Pengaturan() {
             } else {
                 const user = session.user;
                 setEmail(user.email || "");
-                if (user.user_metadata) {
-                    setNama(user.user_metadata.nama || "Dika");
-                    setTelepon(user.user_metadata.telepon || "");
-                    if (user.user_metadata.tema) {
-                        setTema(user.user_metadata.tema);
-                        document.documentElement.classList.toggle('dark', user.user_metadata.tema === 'gelap');
-                    }
-                }
+                const namaUser = getNamaTampilan(user.email, user.user_metadata?.nama);
+                setNama(namaUser);
+                setTelepon(user.user_metadata?.telepon || "");
+
+                const temaUser = user.user_metadata?.tema || localStorage.getItem('tema') || "terang";
+                setTema(temaUser);
+                terapkanTema(temaUser);
 
                 // Mengambil transaksi hanya untuk mendapatkan daftar bulan
-                const { data } = await supabase.from('transaksi').select('tanggal');
+                const { data } = await supabase
+                    .from('transaksi')
+                    .select('tanggal')
+                    .eq('user_id', session.user.id);
                 if (data) setSemuaTransaksi(data);
             }
         };
@@ -69,9 +73,10 @@ export default function Pengaturan() {
                 setPasswordBaru("");
             }
 
+            terapkanTema(tema);
             setPesan({ tipe: "sukses", teks: "Profil dan pengaturan berhasil diperbarui!" });
-        } catch (error: any) {
-            setPesan({ tipe: "error", teks: error.message || "Gagal memperbarui profil." });
+        } catch (error) {
+            setPesan({ tipe: "error", teks: pesanError(error, "Gagal memperbarui profil.") });
         } finally {
             setLoading(false);
             setTimeout(() => setPesan({ tipe: "", teks: "" }), 3000);
@@ -85,84 +90,77 @@ export default function Pengaturan() {
 
     const ubahTema = async (pilihanTema: string) => {
         setTema(pilihanTema);
-        if (pilihanTema === 'gelap') {
-            document.documentElement.classList.add('dark');
-        } else {
-            document.documentElement.classList.remove('dark');
-        }
+        terapkanTema(pilihanTema);
         await supabase.auth.updateUser({
-            data: { nama: nama, telepon: telepon, tema: pilihanTema }
+            data: { tema: pilihanTema }
         });
     };
 
-    // FUNGSI BANTUAN EKSTRAK BULAN
-    const getBulanTahun = (tanggalStr: string) => {
-        if (!tanggalStr) return "Lainnya";
-        const regex = /(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})/;
-        const match = tanggalStr.match(regex);
-        if (match) {
-            const bulanIndo = ["Januari", "Februari", "Maret", "April", "Mei", "Juni", "Juli", "Agustus", "September", "Oktober", "November", "Desember"];
-            return `${bulanIndo[parseInt(match[2]) - 1]} ${match[3]}`;
-        }
-        const kata = tanggalStr.split(' ');
-        if (kata.length >= 3) return `${kata[1]} ${kata[2]}`.replace(',', '');
-        return "Lainnya";
-    };
-
-    const daftarPeriode = Array.from(new Set(semuaTransaksi.map(t => getBulanTahun(t.tanggal)))).filter(p => p !== "Lainnya");
+    const daftarPeriodeTersedia = daftarPeriode(semuaTransaksi.map((t) => String(t.tanggal ?? "")));
 
     // FUNGSI EKSPOR TERBARU (DENGAN FILTER BULAN)
     const eksporKeCSV = async () => {
         setLoadingEkspor(true);
         try {
-            // Ambil seluruh data dulu
-            const { data, error } = await supabase.from('transaksi').select('*').order('id', { ascending: false });
+            const { data: { session } } = await supabase.auth.getSession();
+            if (!session) {
+                router.replace('/login');
+                return;
+            }
+
+            const { data, error } = await supabase
+                .from('transaksi')
+                .select('id, jenis, kategori, jumlah, keterangan, tanggal, metode_pembayaran, detail_barang')
+                .eq('user_id', session.user.id)
+                .order('tanggal', { ascending: false })
+                .order('id', { ascending: false });
             if (error) throw error;
 
             if (!data || data.length === 0) {
                 alert("Belum ada data transaksi untuk diekspor.");
-                setLoadingEkspor(false);
                 return;
             }
 
             // Filter data sesuai pilihan dropdown
+            const semuaData = data as Transaksi[];
             const dataDifilter = filterBulanEkspor === "Semua Waktu"
-                ? data
-                : data.filter((t: any) => getBulanTahun(t.tanggal) === filterBulanEkspor);
+                ? semuaData
+                : semuaData.filter((t) => getBulanTahun(String(t.tanggal ?? "")) === filterBulanEkspor);
 
             if (dataDifilter.length === 0) {
                 alert(`Tidak ada transaksi yang tercatat pada periode: ${filterBulanEkspor}`);
-                setLoadingEkspor(false);
                 return;
             }
 
-            const headers = ["ID", "Jenis", "Kategori", "Jumlah", "Keterangan (Toko)", "Tanggal", "Metode Pembayaran", "Rincian Barang", "Bukti Foto"];
-            const rows = dataDifilter.map((t: any) => [
-                t.id,
-                t.jenis,
-                t.kategori,
-                t.jumlah,
-                `"${(t.keterangan || "").replace(/"/g, '""')}"`,
-                `"${t.tanggal || ""}"`,
-                `"${t.metode_pembayaran || ""}"`,
-                `"${(t.detail_barang || "").replace(/\n/g, ' ').replace(/"/g, '""')}"`,
-                `"${t.bukti_foto || ""}"`
+            const headers = ["ID", "Jenis", "Kategori", "Jumlah", "Keterangan (Toko)", "Tanggal", "Metode Pembayaran", "Rincian Barang"];
+            const rows = dataDifilter.map((t) => [
+                sanitizeCsvCell(t.id),
+                sanitizeCsvCell(t.jenis),
+                sanitizeCsvCell(t.kategori),
+                sanitizeCsvCell(toNumber(t.jumlah)),
+                sanitizeCsvCell(t.keterangan),
+                sanitizeCsvCell(t.tanggal),
+                sanitizeCsvCell(t.metode_pembayaran),
+                sanitizeCsvCell(t.detail_barang),
             ]);
 
-            const csvContent = "data:text/csv;charset=utf-8," + [headers.join(","), ...rows.map(e => e.join(","))].join("\n");
-            const encodedUri = encodeURI(csvContent);
+            const csvContent = "\uFEFF" + [headers.map(sanitizeCsvCell).join(","), ...rows.map(e => e.join(","))].join("\r\n");
+            const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+            const url = URL.createObjectURL(blob);
             const link = document.createElement("a");
-            link.setAttribute("href", encodedUri);
 
-            // Nama file disesuaikan dengan bulan yang dipilih
-            const labelFile = filterBulanEkspor === "Semua Waktu" ? "semua-waktu" : filterBulanEkspor.replace(' ', '-').toLowerCase();
+            const labelFile = filterBulanEkspor === "Semua Waktu"
+                ? "semua-waktu"
+                : filterBulanEkspor.replace(/\s+/g, '-').toLowerCase();
+            link.setAttribute("href", url);
             link.setAttribute("download", `laporan-keuangan-dika-${labelFile}.csv`);
 
             document.body.appendChild(link);
             link.click();
             document.body.removeChild(link);
-        } catch (err: any) {
-            alert("Gagal mengunduh data: " + err.message);
+            URL.revokeObjectURL(url);
+        } catch (err) {
+            alert("Gagal mengunduh data: " + pesanError(err));
         } finally {
             setLoadingEkspor(false);
         }
@@ -329,7 +327,7 @@ export default function Pengaturan() {
                                                 className={`bg-transparent text-sm font-medium outline-none cursor-pointer w-full ${tema === 'gelap' ? 'text-white' : 'text-slate-700'}`}
                                             >
                                                 <option value="Semua Waktu" className="text-slate-800">Semua Waktu</option>
-                                                {daftarPeriode.map(p => (
+                                                {daftarPeriodeTersedia.map(p => (
                                                     <option key={p} value={p} className="text-slate-800">{p}</option>
                                                 ))}
                                             </select>

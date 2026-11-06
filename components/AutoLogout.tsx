@@ -1,20 +1,18 @@
 "use client";
 
-import { useEffect, useRef } from 'react';
+import { useCallback, useEffect, useRef } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import { supabase } from '@/utils/supabase';
+
+// Batas tidak aktif sebelum sesi diakhiri (5 menit).
+const WAKTU_TIMEOUT = 5 * 60 * 1000;
 
 export default function AutoLogout() {
     const router = useRouter();
     const pathname = usePathname();
     const timeoutRef = useRef<NodeJS.Timeout | null>(null);
 
-    // WAKTU TIMEOUT: Atur berapa lama batas tidak aktifnya di sini
-    // Saat ini diatur: 5 Menit (5 * 60 detik * 1000 milidetik)
-    // Tips: Ubah angka 10 menjadi angka lain jika ingin mempercepat/memperlambat
-    const WAKTU_TIMEOUT = 5*60*1000;
-
-    const resetTimer = () => {
+    const resetTimer = useCallback(() => {
         if (timeoutRef.current) clearTimeout(timeoutRef.current);
 
         timeoutRef.current = setTimeout(async () => {
@@ -25,7 +23,7 @@ export default function AutoLogout() {
                 router.replace('/login');
             }
         }, WAKTU_TIMEOUT);
-    };
+    }, [pathname, router]);
 
     useEffect(() => {
         // Daftar aktivitas fisik yang akan me-reset timer (mencegah logout)
@@ -46,7 +44,7 @@ export default function AutoLogout() {
             events.forEach(event => window.removeEventListener(event, tanganiAktivitas));
             if (timeoutRef.current) clearTimeout(timeoutRef.current);
         };
-    }, [pathname]);
+    }, [resetTimer]);
 
     // Komponen ini tidak memiliki tampilan (menghilang di layar)
     return null;

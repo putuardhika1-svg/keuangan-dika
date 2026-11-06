@@ -4,87 +4,196 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { supabase } from '@/utils/supabase';
+import { formatRupiah, getBulanTahun, getInisial, getNamaTampilan, pesanError, terapkanTema, toNumber } from '@/utils/format';
+import type { Anggaran, PesanChat, Transaksi } from '@/utils/types';
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip as ChartTooltip, Legend } from 'recharts';
 import { Plus, X, Receipt, Image as ImageIcon, CreditCard, Calendar, Wallet, ArrowDownCircle, ArrowUpCircle, LogOut, User, Shield, Download, Palette, HandCoins, Landmark, CalendarDays, Trash2, Edit2, Save, PlusCircle, Lightbulb, Send, MessageSquare } from 'lucide-react';
+
+const KUNCI_ANGGARAN_LAMA = 'budgetKeuanganArdhika';
+const KUNCI_ANGGARAN = 'budgetKeuanganArdhika:';
+const ANGGARAN_DEFAULT: Anggaran[] = [
+  { kategori: "Makanan", batas: 1500000 },
+  { kategori: "Transportasi", batas: 500000 },
+];
 
 export default function Home() {
   const router = useRouter();
 
-  const [transaksi, setTransaksi] = useState<any[]>([]);
-  const [transaksiTerpilih, setTransaksiTerpilih] = useState<any>(null);
+  const [transaksi, setTransaksi] = useState<Transaksi[]>([]);
+  const [transaksiTerpilih, setTransaksiTerpilih] = useState<Transaksi | null>(null);
+  const [urlBukti, setUrlBukti] = useState<string | null>(null);
+  const [userId, setUserId] = useState("");
 
   // STATE FILTER
   const [filterAktif, setFilterAktif] = useState("Semua");
   const [periodeAktif, setPeriodeAktif] = useState(""); 
 
   // STATE ANGGARAN (BUDGETING) & EDIT MODE
-  const [targetAnggaran, setTargetAnggaran] = useState([
-    { kategori: "Makan", batas: 1500000 },
-    { kategori: "Transportasi", batas: 500000 },
-  ]);
+  const [targetAnggaran, setTargetAnggaran] = useState(ANGGARAN_DEFAULT);
   const [isEditingAnggaran, setIsEditingAnggaran] = useState(false);
 
   // STATE UNTUK FITUR TANYA JAWAB / SIMULASI BELI
   const [pertanyaanUser, setPertanyaanUser] = useState("");
-  const [riwayatChat, setRiwayatChat] = useState<any[]>([
-    { sender: "bot", teks: "Halo Putu Ardhika! Ada rencana pengeluaran besar atau hal yang ingin didiskusikan terkait keuangan bulan ini? Ketik pertanyaannya di bawah ya." }
+  const [riwayatChat, setRiwayatChat] = useState<PesanChat[]>([
+    { sender: "bot", teks: "Halo! Ada rencana pengeluaran besar atau hal yang ingin didiskusikan terkait keuangan bulan ini? Ketik pertanyaannya di bawah ya." }
   ]);
 
   const [sapaan, setSapaan] = useState("Halo");
   const [menuProfilBuka, setMenuProfilBuka] = useState(false);
-  const [userEmail, setUserEmail] = useState("ardhika@email.com");
+  const [namaTampilan, setNamaTampilan] = useState("Ardhika");
+  const [userEmail, setUserEmail] = useState("");
   const [isDarkMode, setIsDarkMode] = useState(false);
+
+  const bacaAnggaranLokal = (idUser: string): Anggaran[] | null => {
+    try {
+      const kunci = `${KUNCI_ANGGARAN}${idUser}`;
+      const mentah = localStorage.getItem(kunci) ?? localStorage.getItem(KUNCI_ANGGARAN_LAMA);
+      if (!mentah) return null;
+
+      const hasil: unknown = JSON.parse(mentah);
+      if (!Array.isArray(hasil)) return null;
+
+      return hasil
+        .map((item: unknown) => {
+          const data = (item ?? {}) as { kategori?: unknown; batas?: unknown };
+          return {
+            kategori: data.kategori === "Makan" ? "Makanan" : String(data.kategori ?? "").trim(),
+            batas: Math.max(toNumber(data.batas), 0),
+          };
+        })
+        .filter((item) => item.kategori.length > 0);
+    } catch {
+      return null;
+    }
+  };
+
+  const simpanAnggaranLokal = (idUser: string, data: Anggaran[]) => {
+    try {
+      localStorage.setItem(`${KUNCI_ANGGARAN}${idUser}`, JSON.stringify(data));
+      localStorage.removeItem(KUNCI_ANGGARAN_LAMA);
+    } catch {
+      // Cache lokal opsional; database tetap sumber utama.
+    }
+  };
+
+  const muatAnggaran = async (idUser: string) => {
+    const lokal = bacaAnggaranLokal(idUser);
+
+    try {
+      const { data, error } = await supabase
+        .from('budgets')
+        .select('kategori, batas')
+        .eq('user_id', idUser)
+        .order('kategori');
+
+      if (error) throw error;
+
+      if (data && data.length > 0) {
+        const dariDatabase: Anggaran[] = data.map((item) => ({
+          kategori: String(item.kategori ?? '').trim(),
+          batas: Math.max(toNumber(item.batas), 0),
+        })).filter((item) => item.kategori.length > 0);
+
+        setTargetAnggaran(dariDatabase);
+        simpanAnggaranLokal(idUser, dariDatabase);
+        return;
+      }
+    } catch (error) {
+      console.warn("Tabel budgets belum siap, memakai cache lokal.", error);
+    }
+
+    if (lokal) setTargetAnggaran(lokal);
+  };
+
+  const fetchData = async (idUser?: string) => {
+    try {
+      let query = supabase
+        .from('transaksi')
+        .select('id, user_id, jenis, kategori, jumlah, keterangan, tanggal, metode_pembayaran, detail_barang')
+        .order('tanggal', { ascending: false })
+        .order('id', { ascending: false });
+
+      if (idUser) query = query.eq('user_id', idUser);
+
+      const { data, error } = await query;
+      if (error) throw error;
+      setTransaksi((data ?? []) as Transaksi[]);
+    } catch (error) {
+      console.error("Gagal memuat transaksi:", error);
+    }
+  };
 
   useEffect(() => {
     const bulanIni = new Date().toLocaleDateString('id-ID', { month: 'long', year: 'numeric' });
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- periode awal mengikuti bulan berjalan
     setPeriodeAktif(bulanIni);
 
     const cekLogin = async () => {
       const { data: { session } } = await supabase.auth.getSession();
       if (!session) {
         router.replace('/login');
-      } else {
-        const user = session.user;
-        if (user.email) setUserEmail(user.email);
-
-        if (user.user_metadata?.tema === 'gelap') {
-          setIsDarkMode(true);
-          document.documentElement.classList.add('dark');
-        } else {
-          setIsDarkMode(false);
-          document.documentElement.classList.remove('dark');
-        }
-
-        fetchData();
+        return;
       }
+
+      const user = session.user;
+      setUserId(user.id);
+      setNamaTampilan(getNamaTampilan(user.email, user.user_metadata?.nama));
+      if (user.email) setUserEmail(user.email);
+
+      const temaTersimpan = user.user_metadata?.tema ?? localStorage.getItem('tema');
+      const gelap = temaTersimpan === 'gelap';
+      setIsDarkMode(gelap);
+      terapkanTema(gelap ? 'gelap' : 'terang');
+
+      muatAnggaran(user.id);
+      fetchData(user.id);
     };
 
     cekLogin();
-
-    const savedAnggaran = localStorage.getItem('budgetKeuanganArdhika');
-    if (savedAnggaran) {
-      setTargetAnggaran(JSON.parse(savedAnggaran));
-    }
 
     const jam = new Date().getHours();
     if (jam >= 4 && jam < 11) setSapaan("Selamat Pagi");
     else if (jam >= 11 && jam < 15) setSapaan("Selamat Siang");
     else if (jam >= 15 && jam < 19) setSapaan("Selamat Sore");
     else setSapaan("Selamat Malam");
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- muatAnggaran/fetchData hanya dipakai saat mount
   }, [router]);
-
-  const fetchData = async () => {
-    const { data } = await supabase.from('transaksi').select('*').order('id', { ascending: false });
-    if (data) setTransaksi(data);
-  };
 
   const tanganiLogout = async () => {
     await supabase.auth.signOut();
     router.replace('/login');
   };
 
-  const formatRupiah = (angka: number) => {
-    return new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(angka);
+  const bukaDetail = async (transaksi: Transaksi) => {
+    setTransaksiTerpilih(transaksi);
+    setUrlBukti(null);
+
+    try {
+      const { data, error } = await supabase
+        .from('transaksi')
+        .select('bukti_foto')
+        .eq('id', transaksi.id)
+        .maybeSingle();
+      if (error) throw error;
+
+      const bukti = data?.bukti_foto;
+      setTransaksiTerpilih({ ...transaksi, bukti_foto: bukti ?? null });
+
+      if (!bukti) return;
+
+      if (/^(https?:|data:|blob:)/.test(bukti)) {
+        setUrlBukti(bukti);
+        return;
+      }
+
+      const { data: signed, error: errorSigned } = await supabase.storage
+        .from('bukti-struk')
+        .createSignedUrl(bukti, 3600);
+      if (errorSigned) throw errorSigned;
+      if (signed) setUrlBukti(signed.signedUrl);
+    } catch (error) {
+      console.warn("Gagal membuka foto struk:", error);
+    }
   };
 
   const hapusTransaksi = async (id: string) => {
@@ -92,19 +201,72 @@ export default function Home() {
     if (!konfirmasi) return;
 
     try {
-      const { error } = await supabase.from('transaksi').delete().eq('id', id);
+      let query = supabase.from('transaksi').delete().eq('id', id);
+      if (userId) query = query.eq('user_id', userId);
+
+      const { error } = await query;
       if (error) throw error;
-      setTransaksiTerpilih(null); 
-      fetchData(); 
-    } catch (error: any) {
-      alert("Gagal menghapus data: " + error.message);
+
+      const bukti = transaksiTerpilih?.bukti_foto;
+      if (bukti && !/^(https?:|data:|blob:)/.test(bukti)) {
+        const { error: errorFoto } = await supabase.storage.from('bukti-struk').remove([bukti]);
+        if (errorFoto) console.warn("Gagal menghapus foto struk:", errorFoto.message);
+      }
+
+      setTransaksiTerpilih(null);
+      setUrlBukti(null);
+      fetchData(userId);
+    } catch (error) {
+      alert("Gagal menghapus data: " + pesanError(error));
     }
   };
 
   // --- FUNGSI MANAJEMEN ANGGARAN ---
-  const simpanPerubahanAnggaran = () => {
-    localStorage.setItem('budgetKeuanganArdhika', JSON.stringify(targetAnggaran));
+  const simpanPerubahanAnggaran = async () => {
+    const bersih = targetAnggaran
+      .map((item) => ({
+        kategori: item.kategori.trim(),
+        batas: Math.max(toNumber(item.batas), 0),
+      }))
+      .filter((item) => item.kategori.length > 0);
+
+    if (userId) simpanAnggaranLokal(userId, bersih);
+    setTargetAnggaran(bersih);
     setIsEditingAnggaran(false);
+
+    if (!userId) return;
+
+    try {
+      if (bersih.length > 0) {
+        const { error } = await supabase.from('budgets').upsert(
+          bersih.map((item) => ({ user_id: userId, ...item })),
+          { onConflict: 'user_id,kategori' }
+        );
+        if (error) throw error;
+      }
+
+      const { data: tersimpan, error: errorAmbil } = await supabase
+        .from('budgets')
+        .select('kategori')
+        .eq('user_id', userId);
+      if (errorAmbil) throw errorAmbil;
+
+      const kategoriBaru = new Set(bersih.map((item) => item.kategori));
+      const usang = (tersimpan ?? [])
+        .map((item) => String(item.kategori ?? ''))
+        .filter((kategori) => kategori.length > 0 && !kategoriBaru.has(kategori));
+
+      if (usang.length > 0) {
+        const { error: errorHapus } = await supabase
+          .from('budgets')
+          .delete()
+          .eq('user_id', userId)
+          .in('kategori', usang);
+        if (errorHapus) throw errorHapus;
+      }
+    } catch (error) {
+      console.warn("Anggaran tersimpan lokal; tabel budgets belum siap.", error);
+    }
   };
 
   const ubahDataAnggaran = (index: number, field: string, value: string | number) => {
@@ -125,45 +287,32 @@ export default function Home() {
   // --- FUNGSI RESET RIWAYAT CHAT ---
   const resetChat = () => {
     setRiwayatChat([
-      { sender: "bot", teks: "Halo Putu Ardhika! Riwayat percakapan telah dibersihkan. Ada rencana pengeluaran atau hal lain yang ingin didiskusikan?" }
+      { sender: "bot", teks: `Halo ${namaTampilan}! Riwayat percakapan telah dibersihkan. Ada rencana pengeluaran atau hal lain yang ingin didiskusikan?` }
     ]);
-  };
-
-  // --- FUNGSI EKSTRAK BULAN ---
-  const getBulanTahun = (tanggalStr: string) => {
-    if (!tanggalStr) return "Lainnya";
-    try {
-      const tanggal = new Date(tanggalStr);
-      if (!isNaN(tanggal.getTime())) {
-        return tanggal.toLocaleDateString('id-ID', { month: 'long', year: 'numeric' });
-      }
-    } catch (error) {
-      console.error("Gagal membaca tanggal:", tanggalStr);
-    }
-    return "Lainnya";
   };
 
   const setPeriodeUnik = new Set(transaksi.map(t => getBulanTahun(t.tanggal)));
   if (periodeAktif) {
     setPeriodeUnik.add(periodeAktif);
   }
-  const daftarPeriode = Array.from(setPeriodeUnik).filter(p => p !== "Lainnya");
+  const daftarPeriodeTersedia = Array.from(setPeriodeUnik).filter(p => p !== "Lainnya");
 
   // --- PERHITUNGAN TOTAL SALDO & FILTER ---
-  const totalPemasukanSemua = transaksi.filter(t => t.jenis === 'Pemasukan').reduce((a, b) => a + b.jumlah, 0);
-  const totalPengeluaranSemua = transaksi.filter(t => t.jenis === 'Pengeluaran').reduce((a, b) => a + b.jumlah, 0);
-  const totalHutangSemua = transaksi.filter(t => t.jenis === 'Hutang').reduce((a, b) => a + b.jumlah, 0);
-  const totalPiutangSemua = transaksi.filter(t => t.jenis === 'Piutang').reduce((a, b) => a + b.jumlah, 0);
+  const totalPemasukanSemua = transaksi.filter(t => t.jenis === 'Pemasukan').reduce((a, b) => a + toNumber(b.jumlah), 0);
+  const totalPengeluaranSemua = transaksi.filter(t => t.jenis === 'Pengeluaran').reduce((a, b) => a + toNumber(b.jumlah), 0);
+  const totalHutangSemua = transaksi.filter(t => t.jenis === 'Hutang').reduce((a, b) => a + toNumber(b.jumlah), 0);
+  const totalPiutangSemua = transaksi.filter(t => t.jenis === 'Piutang').reduce((a, b) => a + toNumber(b.jumlah), 0);
   const saldoKasUtama = (totalPemasukanSemua + totalHutangSemua) - (totalPengeluaranSemua + totalPiutangSemua);
 
   const transaksiPeriode = transaksi.filter(t => getBulanTahun(t.tanggal) === periodeAktif);
 
-  const totalPemasukan = transaksiPeriode.filter(t => t.jenis === 'Pemasukan').reduce((a, b) => a + b.jumlah, 0);
-  const totalPengeluaran = transaksiPeriode.filter(t => t.jenis === 'Pengeluaran').reduce((a, b) => a + b.jumlah, 0);
+  const totalPemasukan = transaksiPeriode.filter(t => t.jenis === 'Pemasukan').reduce((a, b) => a + toNumber(b.jumlah), 0);
+  const totalPengeluaran = transaksiPeriode.filter(t => t.jenis === 'Pengeluaran').reduce((a, b) => a + toNumber(b.jumlah), 0);
 
   const dataPengeluaran = transaksiPeriode.filter(t => t.jenis === 'Pengeluaran');
-  const kategoriGrup = dataPengeluaran.reduce((acc: any, curr: any) => {
-    acc[curr.kategori] = (acc[curr.kategori] || 0) + curr.jumlah;
+  const kategoriGrup = dataPengeluaran.reduce<Record<string, number>>((acc, curr) => {
+    const kategori = curr.kategori || 'Lainnya';
+    acc[kategori] = (acc[kategori] || 0) + toNumber(curr.jumlah);
     return acc;
   }, {});
 
@@ -182,7 +331,7 @@ export default function Home() {
       };
     }
 
-    for (let anggaran of targetAnggaran) {
+    for (const anggaran of targetAnggaran) {
       const terpakai = kategoriGrup[anggaran.kategori] || 0;
       if (terpakai > anggaran.batas) {
         return {
@@ -204,7 +353,7 @@ export default function Home() {
       if (rasioTabungan >= 30) {
         return {
           tipe: "sukses",
-          pesan: `Hebat, Putu Ardhika! Bulan ini kamu berhasil mengamankan sekitar ${rasioTabungan.toFixed(0)}% dari total pemasukanmu. Pertahankan manajemen kas yang sehat ini!`
+          pesan: `Hebat, ${namaTampilan}! Bulan ini kamu berhasil mengamankan sekitar ${rasioTabungan.toFixed(0)}% dari total pemasukanmu. Pertahankan manajemen kas yang sehat ini!`
         };
       } else if (sisaBulanIni < 0) {
         return {
@@ -228,7 +377,7 @@ export default function Home() {
     if (!pertanyaanUser.trim()) return;
 
     const teksInput = pertanyaanUser.toLowerCase();
-    const chatBaru = [...riwayatChat, { sender: "user", teks: pertanyaanUser }];
+    const chatBaru: PesanChat[] = [...riwayatChat, { sender: "user", teks: pertanyaanUser }];
     setRiwayatChat(chatBaru);
     setPertanyaanUser("");
 
@@ -246,7 +395,7 @@ export default function Home() {
       } else if (teksInput.includes("liburan") || teksInput.includes("jalan-jalan")) {
         jawabanBot = `Untuk rencana liburan, pastikan Anda menggunakan sisa anggaran bulanan yang tidak terpakai. Jangan mengambil dana dari alokasi tabungan darurat atau pos wajib!`;
       } else {
-        jawabanBot = `Halo Putu Ardhika! Berdasarkan data bulan ${periodeAktif}, total pengeluaran Anda adalah ${formatRupiah(totalPengeluaran)} dari pemasukan ${formatRupiah(totalPemasukan)}. Pastikan setiap rencana pengeluaran besar telah memperhitungkan sisa kas saat ini.`;
+        jawabanBot = `Halo ${namaTampilan}! Berdasarkan data bulan ${periodeAktif}, total pengeluaran Anda adalah ${formatRupiah(totalPengeluaran)} dari pemasukan ${formatRupiah(totalPemasukan)}. Pastikan setiap rencana pengeluaran besar telah memperhitungkan sisa kas saat ini.`;
       }
 
       setRiwayatChat(prev => [...prev, { sender: "bot", teks: jawabanBot }]);
@@ -258,7 +407,7 @@ export default function Home() {
     return t.jenis === filterAktif;
   });
 
-  const transaksiDikelompokkan = transaksiDifilter.reduce((acc: any, t: any) => {
+  const transaksiDikelompokkan = transaksiDifilter.reduce<Record<string, Transaksi[]>>((acc, t) => {
     const bulanTahun = getBulanTahun(t.tanggal);
     if (!acc[bulanTahun]) {
       acc[bulanTahun] = [];
@@ -274,19 +423,19 @@ export default function Home() {
         {/* HEADER SAPAAN & MENU PROFIL */}
         <div className="flex items-center justify-between pt-2 relative z-40">
           <div>
-            <h1 className={`text-2xl font-bold ${isDarkMode ? 'text-white' : 'text-slate-800'}`}>{sapaan}, Putu Ardhika! 👋</h1>
+            <h1 className={`text-2xl font-bold ${isDarkMode ? 'text-white' : 'text-slate-800'}`}>{sapaan}, {namaTampilan}! 👋</h1>
             <p className={`text-sm ${isDarkMode ? 'text-slate-400' : 'text-slate-500'}`}>Semoga laporan keuanganmu selalu sehat.</p>
           </div>
 
           <div className="relative">
-            <button onClick={() => setMenuProfilBuka(!menuProfilBuka)} className="w-12 h-12 bg-blue-100 text-blue-600 rounded-full flex items-center justify-center font-bold text-xl shadow-sm border border-blue-200 transition-transform hover:scale-105 focus:outline-none">
-              PA
+            <button onClick={() => setMenuProfilBuka(!menuProfilBuka)} aria-label="Buka menu profil" className="w-12 h-12 bg-blue-100 text-blue-600 rounded-full flex items-center justify-center font-bold text-xl shadow-sm border border-blue-200 transition-transform hover:scale-105 focus:outline-none">
+              {getInisial(namaTampilan)}
             </button>
             {menuProfilBuka && <div className="fixed inset-0 z-40" onClick={() => setMenuProfilBuka(false)}></div>}
             {menuProfilBuka && (
               <div className={`absolute right-0 mt-3 w-64 rounded-2xl shadow-2xl border py-2 z-50 animate-in fade-in slide-in-from-top-2 ${isDarkMode ? 'bg-slate-800 border-slate-700 text-white' : 'bg-white border-slate-100 text-slate-800'}`}>
                 <div className={`px-4 py-3 border-b mb-2 rounded-t-2xl ${isDarkMode ? 'border-slate-700 bg-slate-900/50' : 'border-slate-100 bg-slate-50/50'}`}>
-                  <p className="text-sm font-bold">Putu Ardhika</p>
+                  <p className="text-sm font-bold">{namaTampilan}</p>
                   <p className={`text-xs truncate ${isDarkMode ? 'text-slate-400' : 'text-slate-500'}`}>{userEmail}</p>
                 </div>
                 <Link href="/pengaturan" className={`flex items-center gap-3 px-4 py-2.5 text-sm font-medium transition-colors ${isDarkMode ? 'hover:bg-slate-700 text-slate-200' : 'hover:bg-blue-50 text-slate-700 hover:text-blue-600'}`}><User size={18} className="text-slate-400" /> Profil & Akun</Link>
@@ -315,7 +464,7 @@ export default function Home() {
                 onChange={(e) => setPeriodeAktif(e.target.value)}
                 className="bg-transparent text-white text-sm outline-none cursor-pointer w-full md:w-auto appearance-none font-medium"
               >
-                {daftarPeriode.map(p => (
+                {daftarPeriodeTersedia.map(p => (
                   <option key={p} value={p} className="text-slate-800 font-medium">{p}</option>
                 ))}
               </select>
@@ -432,7 +581,7 @@ export default function Home() {
                   <Pie data={dataGrafik} cx="50%" cy="50%" innerRadius={60} outerRadius={80} paddingAngle={5} dataKey="value">
                     {dataGrafik.map((entry, index) => <Cell key={`cell-${index}`} fill={WARNA[index % WARNA.length]} />)}
                   </Pie>
-                  <ChartTooltip formatter={(value: any) => formatRupiah(Number(value))} />
+                  <ChartTooltip formatter={(value: unknown) => formatRupiah(Number(value))} />
                   <Legend verticalAlign="bottom" height={36} />
                 </PieChart>
               </ResponsiveContainer>
@@ -506,7 +655,9 @@ export default function Home() {
                   const terpakai = kategoriGrup[anggaran.kategori] || 0;
                   const sisa = Math.max(anggaran.batas - terpakai, 0);
                   const isOverbudget = terpakai > anggaran.batas;
-                  const persentase = isOverbudget ? 100 : (terpakai / anggaran.batas) * 100;
+                  const persentase = anggaran.batas > 0
+                    ? (isOverbudget ? 100 : Math.min((terpakai / anggaran.batas) * 100, 100))
+                    : (terpakai > 0 ? 100 : 0);
                   
                   let warnaProgress = "bg-green-500";
                   if (isOverbudget || persentase >= 90) warnaProgress = "bg-red-500";
@@ -568,11 +719,11 @@ export default function Home() {
                 Tidak ada riwayat transaksi di bulan {periodeAktif}.
               </p>
             ) : (
-              Object.entries(transaksiDikelompokkan).map(([bulan, trxs]: [string, any]) => (
+              Object.entries(transaksiDikelompokkan).map(([bulan, trxs]) => (
                 <div key={bulan} className="space-y-3">
                   <div className="space-y-3">
-                    {trxs.map((t: any) => (
-                      <div key={t.id} onClick={() => setTransaksiTerpilih(t)} className={`flex items-center justify-between p-4 rounded-2xl border cursor-pointer transition-all ${isDarkMode ? 'bg-slate-900/40 border-slate-700 hover:bg-slate-700/50' : 'border-slate-100 hover:border-blue-200 hover:bg-blue-50'}`}>
+                    {trxs.map((t) => (
+                      <div key={t.id} onClick={() => bukaDetail(t)} className={`flex items-center justify-between p-4 rounded-2xl border cursor-pointer transition-all ${isDarkMode ? 'bg-slate-900/40 border-slate-700 hover:bg-slate-700/50' : 'border-slate-100 hover:border-blue-200 hover:bg-blue-50'}`}>
                         <div className="flex items-center gap-4">
                           <div className={`p-3 rounded-xl 
                             ${t.jenis === 'Pemasukan' ? 'bg-green-100 text-green-600' :
@@ -591,7 +742,7 @@ export default function Home() {
                           ${t.jenis === 'Pemasukan' ? 'text-green-400' :
                             t.jenis === 'Pengeluaran' ? (isDarkMode ? 'text-white' : 'text-slate-800') :
                               t.jenis === 'Hutang' ? 'text-orange-400' : 'text-blue-400'}`}>
-                          {(t.jenis === 'Pemasukan' || t.jenis === 'Hutang') ? '+' : '-'}{formatRupiah(t.jumlah)}
+                          {(t.jenis === 'Pemasukan' || t.jenis === 'Hutang') ? '+' : '-'}{formatRupiah(toNumber(t.jumlah))}
                         </div>
                       </div>
                     ))}
@@ -614,10 +765,13 @@ export default function Home() {
             <div className={`flex justify-between items-center p-6 border-b ${isDarkMode ? 'border-slate-700' : 'border-slate-100'}`}>
               <h2 className="text-xl font-bold">Detail Transaksi</h2>
               <div className="flex items-center gap-2">
-                <button onClick={() => hapusTransaksi(transaksiTerpilih.id)} className={`p-2 rounded-full transition-colors text-red-500 hover:text-red-700 ${isDarkMode ? 'hover:bg-red-900/30' : 'hover:bg-red-50'}`}>
+                <Link href={`/edit/${transaksiTerpilih.id}`} aria-label="Edit transaksi" className={`p-2 rounded-full transition-colors text-blue-500 hover:text-blue-700 ${isDarkMode ? 'hover:bg-blue-900/30' : 'hover:bg-blue-50'}`}>
+                  <Edit2 size={20} />
+                </Link>
+                <button onClick={() => hapusTransaksi(transaksiTerpilih.id)} aria-label="Hapus transaksi" className={`p-2 rounded-full transition-colors text-red-500 hover:text-red-700 ${isDarkMode ? 'hover:bg-red-900/30' : 'hover:bg-red-50'}`}>
                   <Trash2 size={20} />
                 </button>
-                <button onClick={() => setTransaksiTerpilih(null)} className={`p-2 rounded-full transition-colors ${isDarkMode ? 'bg-slate-700 text-slate-200 hover:bg-slate-600' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}>
+                <button onClick={() => setTransaksiTerpilih(null)} aria-label="Tutup detail" className={`p-2 rounded-full transition-colors ${isDarkMode ? 'bg-slate-700 text-slate-200 hover:bg-slate-600' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}>
                   <X size={20} />
                 </button>
               </div>
@@ -630,7 +784,7 @@ export default function Home() {
                   ${transaksiTerpilih.jenis === 'Pemasukan' ? 'text-green-400' :
                     transaksiTerpilih.jenis === 'Hutang' ? 'text-orange-400' :
                       transaksiTerpilih.jenis === 'Piutang' ? 'text-blue-400' : ''}`}>
-                  {formatRupiah(transaksiTerpilih.jumlah)}
+                  {formatRupiah(toNumber(transaksiTerpilih.jumlah))}
                 </h3>
                 <span className={`inline-block mt-3 px-3 py-1 border rounded-full text-xs font-medium ${isDarkMode ? 'bg-slate-800 border-slate-700 text-slate-300' : 'bg-white border-slate-200 text-slate-600'}`}>
                   {transaksiTerpilih.jenis} • {transaksiTerpilih.kategori}
@@ -667,20 +821,25 @@ export default function Home() {
                         return (
                           <div className={`rounded-xl border ${isDarkMode ? 'bg-slate-900 border-slate-700' : 'bg-slate-50 border-slate-100'} p-4`}>
                             <ul className="space-y-3">
-                              {parsed.map((item: any, idx: number) => (
-                                <li key={idx} className={`flex justify-between items-start border-b pb-3 last:border-0 last:pb-0 ${isDarkMode ? 'border-slate-700' : 'border-slate-200'}`}>
-                                  <div className="flex flex-col">
-                                    <span className={`font-medium ${isDarkMode ? 'text-slate-200' : 'text-slate-800'}`}>{item.nama}</span>
-                                    <span className={`text-xs mt-0.5 ${isDarkMode ? 'text-slate-400' : 'text-slate-500'}`}>{item.qty} x {formatRupiah(item.harga)}</span>
-                                  </div>
-                                  <span className={`font-semibold ${isDarkMode ? 'text-slate-200' : 'text-slate-800'}`}>{formatRupiah(item.qty * item.harga)}</span>
-                                </li>
-                              ))}
+                              {parsed.map((item: unknown, idx: number) => {
+                                const data = (item ?? {}) as { nama?: unknown; qty?: unknown; harga?: unknown };
+                                const qty = toNumber(data.qty);
+                                const harga = toNumber(data.harga);
+                                return (
+                                  <li key={idx} className={`flex justify-between items-start border-b pb-3 last:border-0 last:pb-0 ${isDarkMode ? 'border-slate-700' : 'border-slate-200'}`}>
+                                    <div className="flex flex-col">
+                                      <span className={`font-medium ${isDarkMode ? 'text-slate-200' : 'text-slate-800'}`}>{String(data.nama ?? '')}</span>
+                                      <span className={`text-xs mt-0.5 ${isDarkMode ? 'text-slate-400' : 'text-slate-500'}`}>{qty} x {formatRupiah(harga)}</span>
+                                    </div>
+                                    <span className={`font-semibold ${isDarkMode ? 'text-slate-200' : 'text-slate-800'}`}>{formatRupiah(qty * harga)}</span>
+                                  </li>
+                                );
+                              })}
                             </ul>
                           </div>
                         );
                       }
-                    } catch (e) {
+                    } catch {
                       return <div className={`p-4 rounded-xl border whitespace-pre-line text-sm ${isDarkMode ? 'bg-slate-900 border-slate-700 text-slate-300' : 'bg-slate-50 border-slate-100 text-slate-700'}`}>{detail}</div>;
                     }
                   })()}
@@ -692,7 +851,12 @@ export default function Home() {
                   <h4 className="font-bold mb-3 flex items-center gap-2">
                     <ImageIcon size={18} /> Foto Bukti / Struk
                   </h4>
-                  <img src={transaksiTerpilih.bukti_foto} alt="Bukti Struk" className={`w-full rounded-xl border shadow-sm ${isDarkMode ? 'border-slate-700' : 'border-slate-200'}`} />
+                  {urlBukti ? (
+                    // eslint-disable-next-line @next/next/no-img-element -- signed URL dari Supabase Storage
+                    <img src={urlBukti} alt="Bukti Struk" className={`w-full rounded-xl border shadow-sm ${isDarkMode ? 'border-slate-700' : 'border-slate-200'}`} />
+                  ) : (
+                    <p className="text-sm text-slate-400">Memuat foto...</p>
+                  )}
                 </div>
               )}
             </div>
