@@ -3,26 +3,69 @@
 @custom-variant dark (&:where(.dark, .dark *));
 
 :root {
-  --background: #f8fafc;
-  --foreground: #0f172a;
+  color-scheme: light;
+  --paper: #f1f3ef;
+  --surface: #ffffff;
+  --ink: #14201b;
+  --muted: #66736c;
+  --line: #d9dfda;
+  --accent: #1e5b45;
+  --accent-soft: #e4eee8;
+  --positive: #2f6b4f;
+  --negative: #a4483d;
+  --warning: #96692c;
 }
 
 .dark {
-  --background: #0f172a;
-  --foreground: #f8fafc;
+  color-scheme: dark;
+  --paper: #0f1512;
+  --surface: #151d19;
+  --ink: #e9efea;
+  --muted: #96a39c;
+  --line: #2a3630;
+  --accent: #8fc9af;
+  --accent-soft: #1b2d25;
+  --positive: #8fc9af;
+  --negative: #e08f84;
+  --warning: #d6b077;
 }
 
 @theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
-  --font-mono: ui-monospace, SFMono-Regular, Menlo, monospace;
+  --color-paper: var(--paper);
+  --color-surface: var(--surface);
+  --color-ink: var(--ink);
+  --color-muted: var(--muted);
+  --color-line: var(--line);
+  --color-accent: var(--accent);
+  --color-accent-soft: var(--accent-soft);
+  --color-positive: var(--positive);
+  --color-negative: var(--negative);
+  --color-warning: var(--warning);
+  --font-sans: var(--font-plex-sans), ui-sans-serif, system-ui, sans-serif;
+  --font-serif: var(--font-newsreader), Georgia, "Times New Roman", serif;
+  --font-mono: var(--font-plex-mono), ui-monospace, SFMono-Regular, Menlo, monospace;
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
+  background: var(--paper);
+  color: var(--ink);
+  font-family: var(--font-plex-sans), ui-sans-serif, system-ui, sans-serif;
+  text-rendering: optimizeLegibility;
+}
+
+::selection {
+  background: var(--accent);
+  color: var(--paper);
+}
+
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.angka {
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: "tnum";
 }
 
 .hide-scrollbar {
@@ -37,7 +80,7 @@ body {
 @keyframes masuk-halus {
   from {
     opacity: 0;
-    transform: translateY(6px);
+    transform: translateY(4px);
   }
   to {
     opacity: 1;
@@ -46,5 +89,15 @@ body {
 }
 
 .animate-in {
-  animation: masuk-halus 0.2s ease-out;
+  animation: masuk-halus 0.18s ease-out;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
 }

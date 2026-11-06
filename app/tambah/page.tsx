@@ -208,133 +208,190 @@ export default function TambahTransaksi() {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-gray-900 p-4 md:p-8 text-gray-800 dark:text-gray-100">
-      <div className="max-w-xl mx-auto bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 overflow-hidden">
-
-        <div className="p-6 border-b border-gray-100 dark:border-gray-700 flex items-start gap-4">
-
-          {/* Ini adalah tombol panah kembalinya */}
-          <Link
-            href="/"
-            className="p-2 -ml-2 rounded-full text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-700 dark:text-gray-400 transition-colors mt-0.5"
-          >
-            <ArrowLeft className="w-5 h-5" />
+    <div className="min-h-screen bg-paper text-ink">
+      <header className="border-b border-line">
+        <div className="mx-auto flex max-w-3xl items-center gap-3 px-5 py-4">
+          <Link href="/" aria-label="Kembali ke ringkasan" className="rounded-md p-2 text-muted transition-colors hover:bg-surface hover:text-ink">
+            <ArrowLeft size={18} />
           </Link>
-
-          {/* Ini judul yang lama, sekarang posisinya di sebelah kanan panah */}
-          <div>
-            <h1 className="text-2xl font-bold">Tambah Transaksi</h1>
-            <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">Catat aktivitas keuangan Anda hari ini.</p>
+          <div className="flex-1">
+            <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-muted">Buku Kas</p>
+            <h1 className="mt-0.5 font-serif text-xl leading-tight">Catat transaksi</h1>
           </div>
-
         </div>
+      </header>
 
-        <div className="p-6 bg-blue-50/50 dark:bg-blue-900/20 border-b border-gray-100 dark:border-gray-700">
-          <label className="text-sm font-semibold text-blue-800 dark:text-blue-300 mb-3 block">
-            Isi Cepat dengan Scan Struk (Gemini AI)
-          </label>
-          <div className="flex gap-3">
-            <label className="flex-1 flex items-center justify-center gap-2 bg-white dark:bg-gray-700 border border-blue-200 dark:border-blue-800 hover:bg-blue-50 dark:hover:bg-gray-600 text-blue-600 dark:text-blue-400 py-3 rounded-xl cursor-pointer transition-colors">
-              {loadingScan ? <Loader2 className="w-5 h-5 animate-spin" /> : <Camera className="w-5 h-5" />}
-              <span className="font-medium">{loadingScan ? "Membaca..." : "Pilih Foto Struk"}</span>
+      <main className="mx-auto max-w-3xl px-5 py-8 lg:py-12">
+        <p className="max-w-lg text-sm leading-relaxed text-muted">
+          Satu catatan sehari sudah cukup. Mulai dari nominal, lalu lengkapi bila perlu.
+        </p>
+
+        <section className="mt-6 rounded-xl border border-dashed border-line p-4 sm:p-5">
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-muted">Dari foto struk</p>
+              <p className="mt-1 text-sm text-ink">Isi nominal, tanggal, dan rincian secara otomatis.</p>
+            </div>
+            <label className={`inline-flex shrink-0 cursor-pointer items-center justify-center gap-2 rounded-md border border-line bg-surface px-4 py-2.5 text-sm font-medium transition-colors hover:border-accent hover:text-accent ${loadingScan ? "pointer-events-none opacity-60" : ""}`}>
+              {loadingScan ? <Loader2 size={16} className="animate-spin" /> : <Camera size={16} />}
+              {loadingScan ? "Membaca struk..." : "Pilih foto"}
               <input type="file" accept="image/*" capture="environment" className="hidden" onChange={handleScanStruk} disabled={loadingScan} />
             </label>
           </div>
+
           {fileStruk && (
-            <div className="mt-3 flex items-center justify-between gap-3 rounded-xl bg-white/70 dark:bg-gray-800/60 border border-blue-100 dark:border-blue-900 px-3 py-2 text-xs">
-              <span className="truncate text-gray-600 dark:text-gray-300">Foto siap diunggah: {fileStruk.name}</span>
-              <button type="button" onClick={() => setFileStruk(null)} className="shrink-0 font-semibold text-red-500 hover:text-red-600">
-                Hapus
+            <div className="mt-4 flex items-center justify-between gap-3 border-t border-line pt-3">
+              <p className="truncate font-mono text-[11px] text-muted">{fileStruk.name}</p>
+              <button type="button" onClick={() => setFileStruk(null)} className="shrink-0 text-xs font-medium text-negative hover:underline">
+                Hapus foto
               </button>
             </div>
           )}
-        </div>
+        </section>
 
-        <form onSubmit={handleSubmit} className="p-6 space-y-5">
-
-          <div>
-            <label className="block text-sm font-medium mb-2">Jenis Transaksi</label>
-            <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+        <form onSubmit={handleSubmit} className="mt-8 space-y-8">
+          <fieldset>
+            <legend className="font-mono text-[10px] uppercase tracking-[0.18em] text-muted">Jenis</legend>
+            <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4">
               {JENIS_TRANSAKSI.map((item) => (
                 <button
-                  key={item} type="button" onClick={() => { setJenis(item); setKategori(""); }}
-                  className={`py-2 px-3 text-sm rounded-lg border font-medium transition-colors ${jenis === item ? "bg-blue-600 text-white border-blue-600" : "bg-transparent text-gray-600 dark:text-gray-300 border-gray-200 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700"}`}
+                  key={item}
+                  type="button"
+                  onClick={() => { setJenis(item); setKategori(""); }}
+                  className={`rounded-md border px-3 py-2 text-sm font-medium transition-colors ${
+                    jenis === item
+                      ? "border-ink bg-ink text-paper"
+                      : "border-line text-muted hover:border-ink hover:text-ink"
+                  }`}
                 >
                   {item}
                 </button>
               ))}
             </div>
-          </div>
+          </fieldset>
 
           <div>
-            <label className="block text-sm font-medium mb-2">Nominal (Rp)</label>
-            <input type="number" required min={1} step={1} inputMode="numeric" value={nominal} onChange={(e) => setNominal(e.target.value)} placeholder="Contoh: 50000" className="w-full px-4 py-3 rounded-xl border border-gray-200 dark:border-gray-600 bg-gray-50 dark:bg-gray-700 outline-none" />
+            <label htmlFor="nominal" className="font-mono text-[10px] uppercase tracking-[0.18em] text-muted">Nominal</label>
+            <div className="mt-2 flex items-baseline gap-2 border-b border-line pb-2 transition-colors focus-within:border-accent">
+              <span className="font-mono text-sm text-muted">Rp</span>
+              <input
+                id="nominal"
+                type="number"
+                required
+                min={1}
+                step={1}
+                inputMode="numeric"
+                value={nominal}
+                onChange={(e) => setNominal(e.target.value)}
+                placeholder="0"
+                className="angka w-full bg-transparent font-mono text-4xl leading-none tracking-tight text-ink outline-none placeholder:text-line sm:text-5xl"
+              />
+            </div>
           </div>
 
-          <div>
-            <label className="block text-sm font-medium mb-2">Kategori</label>
-            <select required value={kategori} onChange={(e) => setKategori(e.target.value)} className="w-full px-4 py-3 rounded-xl border border-gray-200 dark:border-gray-600 bg-gray-50 dark:bg-gray-700 outline-none">
-              <option value="" disabled>Pilih Kategori...</option>
-              {opsiKategori[jenis].map((kat) => (
-                <option key={kat} value={kat}>{kat}</option>
-              ))}
-            </select>
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium mb-2">Nama Toko / Keterangan</label>
-            <input type="text" value={keterangan} onChange={(e) => setKeterangan(e.target.value)} placeholder="Misal: Indomaret" className="w-full px-4 py-3 rounded-xl border border-gray-200 dark:border-gray-600 bg-gray-50 dark:bg-gray-700 outline-none" />
-          </div>
-
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid gap-5 sm:grid-cols-2">
             <div>
-              <label className="block text-sm font-medium mb-2">Tanggal</label>
-              <input type="date" required value={tanggal} onChange={(e) => setTanggal(e.target.value)} className="w-full px-4 py-3 rounded-xl border border-gray-200 dark:border-gray-600 bg-gray-50 dark:bg-gray-700 outline-none" />
+              <label htmlFor="kategori" className="font-mono text-[10px] uppercase tracking-[0.18em] text-muted">Kategori</label>
+              <select
+                id="kategori"
+                required
+                value={kategori}
+                onChange={(e) => setKategori(e.target.value)}
+                className="mt-1.5 w-full rounded-md border border-line bg-surface px-3 py-2.5 text-sm text-ink outline-none focus:border-accent"
+              >
+                <option value="" disabled>Pilih kategori</option>
+                {opsiKategori[jenis].map((kat) => (
+                  <option key={kat} value={kat}>{kat}</option>
+                ))}
+              </select>
             </div>
             <div>
-              <label className="block text-sm font-medium mb-2">Metode Pembayaran</label>
-              <input type="text" list="metode-pembayaran" value={metodePembayaran} onChange={(e) => setMetodePembayaran(e.target.value)} placeholder="QRIS, Tunai..." className="w-full px-4 py-3 rounded-xl border border-gray-200 dark:border-gray-600 bg-gray-50 dark:bg-gray-700 outline-none" />
-              <datalist id="metode-pembayaran">
-                <option value="Tunai" />
-                <option value="Kartu Debit" />
-                <option value="Kartu Kredit" />
-                <option value="QRIS" />
-                <option value="E-Wallet" />
-                <option value="Transfer Bank" />
-              </datalist>
+              <label htmlFor="tanggal" className="font-mono text-[10px] uppercase tracking-[0.18em] text-muted">Tanggal</label>
+              <input
+                id="tanggal"
+                type="date"
+                required
+                value={tanggal}
+                onChange={(e) => setTanggal(e.target.value)}
+                className="mt-1.5 w-full rounded-md border border-line bg-surface px-3 py-2.5 font-mono text-sm text-ink outline-none focus:border-accent"
+              />
             </div>
+          </div>
+
+          <div>
+            <label htmlFor="keterangan" className="font-mono text-[10px] uppercase tracking-[0.18em] text-muted">Keterangan</label>
+            <input
+              id="keterangan"
+              type="text"
+              value={keterangan}
+              onChange={(e) => setKeterangan(e.target.value)}
+              placeholder="Contoh: makan siang, bensin, gaji"
+              className="mt-1.5 w-full rounded-md border border-line bg-surface px-3 py-2.5 text-sm text-ink outline-none placeholder:text-muted focus:border-accent"
+            />
+          </div>
+
+          <div>
+            <label htmlFor="metode" className="font-mono text-[10px] uppercase tracking-[0.18em] text-muted">Metode pembayaran</label>
+            <input
+              id="metode"
+              type="text"
+              list="metode-pembayaran"
+              value={metodePembayaran}
+              onChange={(e) => setMetodePembayaran(e.target.value)}
+              placeholder="Tunai, QRIS, transfer..."
+              className="mt-1.5 w-full rounded-md border border-line bg-surface px-3 py-2.5 text-sm text-ink outline-none placeholder:text-muted focus:border-accent"
+            />
+            <datalist id="metode-pembayaran">
+              <option value="Tunai" />
+              <option value="Kartu Debit" />
+              <option value="Kartu Kredit" />
+              <option value="QRIS" />
+              <option value="E-Wallet" />
+              <option value="Transfer Bank" />
+            </datalist>
           </div>
 
           {rincianBarang.length > 0 && (
-            <div className="rounded-xl border border-gray-200 dark:border-gray-600 bg-gray-50 dark:bg-gray-700/50 p-4">
-              <div className="flex items-center justify-between mb-2">
-                <p className="text-sm font-semibold">Rincian Barang (hasil scan)</p>
-                <button type="button" onClick={() => setRincianBarang([])} className="text-xs font-medium text-red-500 hover:text-red-600 flex items-center gap-1">
-                  <Trash2 size={14} /> Hapus
+            <section className="rounded-lg border border-line">
+              <div className="flex items-center justify-between border-b border-line px-4 py-3">
+                <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-muted">Rincian dari struk</p>
+                <button type="button" onClick={() => setRincianBarang([])} className="flex items-center gap-1 text-xs font-medium text-negative hover:underline">
+                  <Trash2 size={13} /> Hapus
                 </button>
               </div>
-              <ul className="space-y-1.5">
+              <ul className="divide-y divide-line">
                 {rincianBarang.map((item, index) => (
-                  <li key={`${item.nama}-${index}`} className="flex justify-between gap-3 text-sm">
-                    <span className="truncate">
-                      {item.nama} <span className="text-xs text-gray-400">x{item.qty}</span>
+                  <li key={`${item.nama}-${index}`} className="flex items-start justify-between gap-4 px-4 py-2.5">
+                    <span className="min-w-0">
+                      <span className="block truncate text-sm">{item.nama}</span>
+                      <span className="mt-0.5 block font-mono text-[10px] text-muted">{item.qty} × {formatRupiah(item.harga)}</span>
                     </span>
-                    <span className="shrink-0 font-medium">{formatRupiah(item.qty * item.harga)}</span>
+                    <span className="angka shrink-0 font-mono text-sm">{formatRupiah(item.qty * item.harga)}</span>
                   </li>
                 ))}
               </ul>
-              <p className="mt-2 border-t border-gray-200 dark:border-gray-600 pt-2 text-right text-sm font-bold">
-                Total: {formatRupiah(rincianBarang.reduce((total, item) => total + item.qty * item.harga, 0))}
-              </p>
-            </div>
+              <div className="flex items-center justify-between border-t border-line px-4 py-3">
+                <span className="text-sm font-medium">Total rincian</span>
+                <span className="angka font-mono text-sm font-medium">
+                  {formatRupiah(rincianBarang.reduce((total, item) => total + item.qty * item.harga, 0))}
+                </span>
+              </div>
+            </section>
           )}
 
-          <button type="submit" disabled={loadingSubmit} className="w-full flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3.5 rounded-xl transition-colors mt-4 disabled:opacity-70">
-            {loadingSubmit ? <><Loader2 className="w-5 h-5 animate-spin" /> Menyimpan...</> : <><Save className="w-5 h-5" /> Simpan Transaksi</>}
-          </button>
+          <div className="flex items-center justify-between gap-4 border-t border-line pt-5">
+            <Link href="/" className="text-sm text-muted transition-colors hover:text-ink">Batal</Link>
+            <button
+              type="submit"
+              disabled={loadingSubmit}
+              className="inline-flex items-center gap-2 rounded-md bg-ink px-5 py-2.5 text-sm font-medium text-paper transition-opacity hover:opacity-90 disabled:opacity-60"
+            >
+              {loadingSubmit ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />}
+              {loadingSubmit ? "Menyimpan..." : "Simpan transaksi"}
+            </button>
+          </div>
         </form>
-
-      </div>
+      </main>
     </div>
   );
 }

@@ -40,6 +40,34 @@ export function getBulanTahun(tanggalStr: string): string {
   return tanggal.toLocaleDateString('id-ID', { month: 'long', year: 'numeric' });
 }
 
+export function pecahTanggal(tanggalStr: string): { hari: string; bulan: string } {
+  const teks = (tanggalStr || "").trim();
+
+  const iso = /^(\d{4})-(\d{1,2})-(\d{1,2})/.exec(teks);
+  if (iso) {
+    const tanggal = new Date(Number(iso[1]), Number(iso[2]) - 1, Number(iso[3]));
+    if (!Number.isNaN(tanggal.getTime())) {
+      return {
+        hari: String(tanggal.getDate()).padStart(2, "0"),
+        bulan: tanggal.toLocaleDateString("id-ID", { month: "short" }).replace(".", "").toUpperCase(),
+      };
+    }
+  }
+
+  const dmy = /^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})$/.exec(teks);
+  if (dmy) {
+    const tanggal = new Date(Number(dmy[3]), Number(dmy[2]) - 1, Number(dmy[1]));
+    if (!Number.isNaN(tanggal.getTime())) {
+      return {
+        hari: String(tanggal.getDate()).padStart(2, "0"),
+        bulan: tanggal.toLocaleDateString("id-ID", { month: "short" }).replace(".", "").toUpperCase(),
+      };
+    }
+  }
+
+  return { hari: "—", bulan: "" };
+}
+
 export function daftarPeriode(tanggalList: string[]): string[] {
   const periode = new Set<string>();
   tanggalList.forEach((tanggal) => {

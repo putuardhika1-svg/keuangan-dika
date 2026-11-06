@@ -146,30 +146,38 @@ export default function EditTransaksi() {
   })();
 
   return (
-    <main className="min-h-screen bg-slate-50 dark:bg-slate-900 p-4 md:p-8">
-      <div className="max-w-2xl mx-auto bg-white dark:bg-slate-800 p-6 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-700">
-        <div className="flex items-center gap-4 mb-8 border-b border-slate-100 dark:border-slate-700 pb-4">
-          <Link href="/" aria-label="Kembali ke dashboard" className="p-2 -ml-2 rounded-full text-slate-500 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-700 transition-colors">
-            <ArrowLeft size={20} />
+    <div className="min-h-screen bg-paper text-ink">
+      <header className="border-b border-line">
+        <div className="mx-auto flex max-w-3xl items-center gap-3 px-5 py-4">
+          <Link href="/" aria-label="Kembali ke ringkasan" className="rounded-md p-2 text-muted transition-colors hover:bg-surface hover:text-ink">
+            <ArrowLeft size={18} />
           </Link>
-          <h1 className="text-2xl font-bold text-slate-800 dark:text-white">Edit Transaksi</h1>
+          <div className="flex-1">
+            <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-muted">Buku Kas</p>
+            <h1 className="mt-0.5 font-serif text-xl leading-tight">Edit transaksi</h1>
+          </div>
         </div>
+      </header>
 
+      <main className="mx-auto max-w-3xl px-5 py-8 lg:py-12">
         {loading ? (
-          <div className="text-center p-8 text-slate-500 dark:text-slate-400">
-            <Loader2 className="w-6 h-6 animate-spin mx-auto mb-2" /> Memuat data...
+          <div className="flex items-center gap-2 py-10 text-sm text-muted">
+            <Loader2 className="h-4 w-4 animate-spin" /> Memuat data...
           </div>
         ) : pesanError ? (
-          <div className="p-4 rounded-xl bg-red-50 border border-red-200 text-red-700 text-sm">{pesanError}</div>
+          <div className="border-l-2 border-negative pl-3 text-sm text-negative" role="alert">
+            {pesanError}
+          </div>
         ) : (
-          <form onSubmit={simpanPerubahan} className="space-y-5">
-            <div className="grid grid-cols-2 gap-4">
+          <form onSubmit={simpanPerubahan} className="space-y-8">
+            <div className="grid gap-5 sm:grid-cols-2">
               <div>
-                <label className="block text-slate-700 dark:text-slate-300 font-medium mb-2">Jenis</label>
+                <label htmlFor="jenis" className="font-mono text-[10px] uppercase tracking-[0.18em] text-muted">Jenis</label>
                 <select
+                  id="jenis"
                   value={jenis}
                   onChange={(e) => ubahJenis(e.target.value as JenisTransaksi)}
-                  className="w-full border border-slate-200 dark:border-slate-600 rounded-xl p-3 bg-slate-50 dark:bg-slate-700 text-slate-800 dark:text-white outline-none"
+                  className="mt-1.5 w-full rounded-md border border-line bg-surface px-3 py-2.5 text-sm text-ink outline-none focus:border-accent"
                 >
                   {JENIS_TRANSAKSI.map((item) => (
                     <option key={item} value={item}>{item}</option>
@@ -177,11 +185,12 @@ export default function EditTransaksi() {
                 </select>
               </div>
               <div>
-                <label className="block text-slate-700 dark:text-slate-300 font-medium mb-2">Kategori</label>
+                <label htmlFor="kategori" className="font-mono text-[10px] uppercase tracking-[0.18em] text-muted">Kategori</label>
                 <select
+                  id="kategori"
                   value={kategori}
                   onChange={(e) => setKategori(e.target.value)}
-                  className="w-full border border-slate-200 dark:border-slate-600 rounded-xl p-3 bg-slate-50 dark:bg-slate-700 text-slate-800 dark:text-white outline-none"
+                  className="mt-1.5 w-full rounded-md border border-line bg-surface px-3 py-2.5 text-sm text-ink outline-none focus:border-accent"
                 >
                   {KATEGORI[jenis].map((item) => (
                     <option key={item} value={item}>{item}</option>
@@ -191,77 +200,96 @@ export default function EditTransaksi() {
             </div>
 
             <div>
-              <label className="block text-slate-700 dark:text-slate-300 font-medium mb-2">Jumlah (Rp)</label>
-              <input
-                type="number"
-                min={1}
-                step={1}
-                value={jumlah}
-                onChange={(e) => setJumlah(e.target.value)}
-                className="w-full border border-slate-200 dark:border-slate-600 rounded-xl p-3 bg-slate-50 dark:bg-slate-700 text-slate-800 dark:text-white outline-none"
-              />
+              <label htmlFor="jumlah" className="font-mono text-[10px] uppercase tracking-[0.18em] text-muted">Jumlah</label>
+              <div className="mt-2 flex items-baseline gap-2 border-b border-line pb-2 transition-colors focus-within:border-accent">
+                <span className="font-mono text-sm text-muted">Rp</span>
+                <input
+                  id="jumlah"
+                  type="number"
+                  min={1}
+                  step={1}
+                  inputMode="numeric"
+                  value={jumlah}
+                  onChange={(e) => setJumlah(e.target.value)}
+                  className="angka w-full bg-transparent font-mono text-4xl leading-none tracking-tight text-ink outline-none sm:text-5xl"
+                />
+              </div>
             </div>
 
             <div>
-              <label className="block text-slate-700 dark:text-slate-300 font-medium mb-2">Keterangan Catatan</label>
+              <label htmlFor="keterangan" className="font-mono text-[10px] uppercase tracking-[0.18em] text-muted">Keterangan</label>
               <input
+                id="keterangan"
                 type="text"
                 value={keterangan}
                 onChange={(e) => setKeterangan(e.target.value)}
-                className="w-full border border-slate-200 dark:border-slate-600 rounded-xl p-3 bg-slate-50 dark:bg-slate-700 text-slate-800 dark:text-white outline-none"
+                className="mt-1.5 w-full rounded-md border border-line bg-surface px-3 py-2.5 text-sm text-ink outline-none focus:border-accent"
               />
             </div>
 
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid gap-5 sm:grid-cols-2">
               <div>
-                <label className="block text-slate-700 dark:text-slate-300 font-medium mb-2">Tanggal</label>
+                <label htmlFor="tanggal" className="font-mono text-[10px] uppercase tracking-[0.18em] text-muted">Tanggal</label>
                 <input
+                  id="tanggal"
                   type="date"
                   value={tanggal}
                   onChange={(e) => setTanggal(e.target.value)}
-                  className="w-full border border-slate-200 dark:border-slate-600 rounded-xl p-3 bg-slate-50 dark:bg-slate-700 text-slate-800 dark:text-white outline-none"
+                  className="mt-1.5 w-full rounded-md border border-line bg-surface px-3 py-2.5 font-mono text-sm text-ink outline-none focus:border-accent"
                 />
               </div>
               <div>
-                <label className="block text-slate-700 dark:text-slate-300 font-medium mb-2">Metode Pembayaran</label>
+                <label htmlFor="metode" className="font-mono text-[10px] uppercase tracking-[0.18em] text-muted">Metode pembayaran</label>
                 <input
+                  id="metode"
                   type="text"
                   value={metodePembayaran}
                   onChange={(e) => setMetodePembayaran(e.target.value)}
                   placeholder="QRIS, Tunai..."
-                  className="w-full border border-slate-200 dark:border-slate-600 rounded-xl p-3 bg-slate-50 dark:bg-slate-700 text-slate-800 dark:text-white outline-none"
+                  className="mt-1.5 w-full rounded-md border border-line bg-surface px-3 py-2.5 text-sm text-ink outline-none placeholder:text-muted focus:border-accent"
                 />
               </div>
             </div>
 
             {rincian.length > 0 && (
-              <div className="rounded-xl border border-slate-200 dark:border-slate-600 bg-slate-50 dark:bg-slate-700/50 p-4">
-                <p className="text-sm font-semibold mb-2">Rincian Barang (dari scan struk)</p>
-                <ul className="space-y-1.5">
+              <section className="rounded-lg border border-line">
+                <div className="border-b border-line px-4 py-3">
+                  <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-muted">Rincian dari struk</p>
+                </div>
+                <ul className="divide-y divide-line">
                   {rincian.map((item, index) => (
-                    <li key={`${item.nama}-${index}`} className="flex justify-between gap-3 text-sm">
-                      <span className="truncate">{item.nama} <span className="text-xs text-slate-400">x{item.qty}</span></span>
-                      <span className="shrink-0 font-medium">{formatRupiah(item.qty * item.harga)}</span>
+                    <li key={`${item.nama}-${index}`} className="flex items-start justify-between gap-4 px-4 py-2.5">
+                      <span className="min-w-0">
+                        <span className="block truncate text-sm">{item.nama}</span>
+                        <span className="mt-0.5 block font-mono text-[10px] text-muted">{item.qty} × {formatRupiah(item.harga)}</span>
+                      </span>
+                      <span className="angka shrink-0 font-mono text-sm">{formatRupiah(item.qty * item.harga)}</span>
                     </li>
                   ))}
                 </ul>
-                <p className="mt-2 border-t border-slate-200 dark:border-slate-600 pt-2 text-right text-sm font-bold">
-                  Total: {formatRupiah(rincian.reduce((total, item) => total + item.qty * item.harga, 0))}
-                </p>
-              </div>
+                <div className="flex items-center justify-between border-t border-line px-4 py-3">
+                  <span className="text-sm font-medium">Total rincian</span>
+                  <span className="angka font-mono text-sm font-medium">
+                    {formatRupiah(rincian.reduce((total, item) => total + item.qty * item.harga, 0))}
+                  </span>
+                </div>
+              </section>
             )}
 
-            <button
-              type="submit"
-              disabled={menyimpan || !siap}
-              className="w-full flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-700 text-white font-bold py-4 px-4 rounded-xl mt-8 transition-colors shadow-lg disabled:opacity-70"
-            >
-              {menyimpan ? <Loader2 className="w-5 h-5 animate-spin" /> : <Save className="w-5 h-5" />}
-              {menyimpan ? "Menyimpan..." : "Simpan Perubahan"}
-            </button>
+            <div className="flex items-center justify-between gap-4 border-t border-line pt-5">
+              <Link href="/" className="text-sm text-muted transition-colors hover:text-ink">Batal</Link>
+              <button
+                type="submit"
+                disabled={menyimpan || !siap}
+                className="inline-flex items-center gap-2 rounded-md bg-ink px-5 py-2.5 text-sm font-medium text-paper transition-opacity hover:opacity-90 disabled:opacity-60"
+              >
+                {menyimpan ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />}
+                {menyimpan ? "Menyimpan..." : "Simpan perubahan"}
+              </button>
+            </div>
           </form>
         )}
-      </div>
-    </main>
+      </main>
+    </div>
   );
 }

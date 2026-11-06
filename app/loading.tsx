@@ -1,9 +1,9 @@
 export default function Loading() {
   return (
-    <main className="min-h-screen bg-slate-50 dark:bg-slate-900 flex items-center justify-center p-6">
-      <div className="flex items-center gap-3 text-slate-500 dark:text-slate-400">
-        <span className="w-5 h-5 rounded-full border-2 border-slate-300 border-t-blue-600 animate-spin" />
-        <span className="text-sm font-medium">Memuat data keuangan...</span>
+    <main className="flex min-h-screen items-center justify-center bg-paper p-6">
+      <div className="flex items-center gap-3 text-muted">
+        <span className="h-4 w-4 animate-spin rounded-full border-2 border-line border-t-accent" />
+        <span className="font-mono text-[10px] uppercase tracking-[0.18em]">Memuat data</span>
       </div>
     </main>
   );

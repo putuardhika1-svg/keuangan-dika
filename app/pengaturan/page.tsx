@@ -6,7 +6,7 @@ import Link from 'next/link';
 import { supabase } from '@/utils/supabase';
 import { daftarPeriode, getBulanTahun, getNamaTampilan, pesanError, sanitizeCsvCell, terapkanTema, toNumber } from '@/utils/format';
 import type { Transaksi } from '@/utils/types';
-import { User, Shield, Download, Palette, ArrowLeft, Save, Loader2, Lock, Mail, Phone, Type, LogOut, CheckCircle2, Monitor, FileSpreadsheet, Sun, Moon, CalendarDays } from 'lucide-react';
+import { User, Shield, Download, Palette, ArrowLeft, Save, Loader2, LogOut, CheckCircle2, Monitor, FileSpreadsheet, Sun, Moon, CalendarDays, ChevronDown } from 'lucide-react';
 
 export default function Pengaturan() {
     const router = useRouter();
@@ -167,219 +167,248 @@ export default function Pengaturan() {
     };
 
     return (
-        <main className={`min-h-screen p-4 md:p-8 pb-24 transition-colors ${tema === 'gelap' ? 'bg-slate-900 text-white' : 'bg-slate-50 text-slate-800'}`}>
-            <div className="max-w-4xl mx-auto">
+    <div className="min-h-screen bg-paper text-ink">
+      <header className="border-b border-line">
+        <div className="mx-auto flex max-w-4xl items-center gap-3 px-5 py-4">
+          <Link href="/" aria-label="Kembali ke ringkasan" className="rounded-md p-2 text-muted transition-colors hover:bg-surface hover:text-ink">
+            <ArrowLeft size={18} />
+          </Link>
+          <div className="flex-1">
+            <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-muted">Buku Kas</p>
+            <h1 className="mt-0.5 font-serif text-xl leading-tight">Pengaturan</h1>
+          </div>
+        </div>
+      </header>
 
-                {/* Header Kembali */}
-                <div className="flex items-center gap-4 mb-8">
-                    <Link href="/" className={`p-3 rounded-full shadow-sm border transition-colors ${tema === 'gelap' ? 'bg-slate-800 border-slate-700 text-white hover:bg-slate-700' : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-100'}`}>
-                        <ArrowLeft size={20} />
-                    </Link>
-                    <h1 className={`text-2xl font-bold ${tema === 'gelap' ? 'text-white' : 'text-slate-800'}`}>Pengaturan</h1>
+      <main className="mx-auto max-w-4xl px-5 py-8 lg:py-12">
+        <div className="grid gap-8 lg:grid-cols-[190px_1fr]">
+          <nav className="hide-scrollbar flex gap-1 overflow-x-auto lg:flex-col" aria-label="Bagian pengaturan">
+            {[
+              { id: "profil", label: "Profil & akun", icon: User },
+              { id: "keamanan", label: "Keamanan", icon: Shield },
+              { id: "cadangan", label: "Ekspor data", icon: Download },
+              { id: "tampilan", label: "Tampilan", icon: Palette },
+            ].map((item) => {
+              const Icon = item.icon;
+              const aktif = tabAktif === item.id;
+              return (
+                <button
+                  key={item.id}
+                  onClick={() => setTabAktif(item.id)}
+                  className={`flex shrink-0 items-center gap-2.5 rounded-md px-3 py-2 text-left text-sm font-medium transition-colors ${
+                    aktif ? "bg-accent-soft text-accent" : "text-muted hover:bg-surface hover:text-ink"
+                  }`}
+                >
+                  <Icon size={16} /> {item.label}
+                </button>
+              );
+            })}
+          </nav>
+
+          <section className="min-w-0">
+            {tabAktif === "profil" && (
+              <div>
+                <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-muted">Profil</p>
+                <h2 className="mt-2 font-serif text-2xl">Profil & akun</h2>
+                <p className="mt-1 text-sm text-muted">Kelola nama, kontak, dan kata sandi Anda.</p>
+
+                {pesan.teks && (
+                  <div className={`mt-5 border-l-2 pl-3 text-sm ${pesan.tipe === "sukses" ? "border-positive text-positive" : "border-negative text-negative"}`} role="status">
+                    {pesan.teks}
+                  </div>
+                )}
+
+                <form onSubmit={simpanProfil} className="mt-6 space-y-6">
+                  <div className="grid gap-5 sm:grid-cols-2">
+                    <div>
+                      <label htmlFor="nama" className="font-mono text-[10px] uppercase tracking-[0.16em] text-muted">Nama panggilan</label>
+                      <input
+                        id="nama"
+                        type="text"
+                        value={nama}
+                        onChange={(e) => setNama(e.target.value)}
+                        placeholder="Nama Anda"
+                        className="mt-1.5 w-full rounded-md border border-line bg-surface px-3 py-2.5 text-sm text-ink outline-none placeholder:text-muted focus:border-accent"
+                      />
+                    </div>
+                    <div>
+                      <label htmlFor="telepon" className="font-mono text-[10px] uppercase tracking-[0.16em] text-muted">Nomor telepon</label>
+                      <input
+                        id="telepon"
+                        type="text"
+                        value={telepon}
+                        onChange={(e) => setTelepon(e.target.value)}
+                        placeholder="08..."
+                        className="mt-1.5 w-full rounded-md border border-line bg-surface px-3 py-2.5 text-sm text-ink outline-none placeholder:text-muted focus:border-accent"
+                      />
+                    </div>
+                  </div>
+
+                  <div>
+                    <label htmlFor="email" className="font-mono text-[10px] uppercase tracking-[0.16em] text-muted">Email login</label>
+                    <input
+                      id="email"
+                      type="email"
+                      value={email}
+                      disabled
+                      className="mt-1.5 w-full cursor-not-allowed rounded-md border border-line bg-paper px-3 py-2.5 text-sm text-muted outline-none"
+                    />
+                  </div>
+
+                  <div className="border-t border-line pt-6">
+                    <label htmlFor="passwordBaru" className="font-mono text-[10px] uppercase tracking-[0.16em] text-muted">Kata sandi baru</label>
+                    <input
+                      id="passwordBaru"
+                      type="password"
+                      value={passwordBaru}
+                      onChange={(e) => setPasswordBaru(e.target.value)}
+                      placeholder="Biarkan kosong jika tidak diubah"
+                      className="mt-1.5 w-full rounded-md border border-line bg-surface px-3 py-2.5 text-sm text-ink outline-none placeholder:text-muted focus:border-accent"
+                    />
+                    <p className="mt-2 text-xs text-muted">Minimal 6 karakter.</p>
+                  </div>
+
+                  <button
+                    type="submit"
+                    disabled={loading}
+                    className="inline-flex items-center gap-2 rounded-md bg-ink px-5 py-2.5 text-sm font-medium text-paper transition-opacity hover:opacity-90 disabled:opacity-60"
+                  >
+                    {loading ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />}
+                    {loading ? "Menyimpan..." : "Simpan perubahan"}
+                  </button>
+                </form>
+              </div>
+            )}
+
+            {tabAktif === "keamanan" && (
+              <div>
+                <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-muted">Keamanan</p>
+                <h2 className="mt-2 font-serif text-2xl">Keamanan & privasi</h2>
+                <p className="mt-1 text-sm text-muted">Status perlindungan akun dan sesi perangkat.</p>
+
+                <div className="mt-6 flex items-start gap-3 rounded-lg border border-line bg-surface p-4">
+                  <CheckCircle2 size={18} className="mt-0.5 shrink-0 text-positive" />
+                  <div>
+                    <p className="text-sm font-medium">Akun dilindungi Supabase Auth</p>
+                    <p className="mt-1 text-xs leading-relaxed text-muted">
+                      Data transaksi dan foto struk disimpan dengan akses per pengguna melalui Row Level Security.
+                    </p>
+                  </div>
                 </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-
-                    {/* SIDEBAR MENU (Kiri) */}
-                    <div className="md:col-span-1 space-y-2">
-                        <button onClick={() => setTabAktif("profil")} className={`w-full flex items-center gap-3 px-4 py-3 rounded-2xl text-sm font-semibold transition-all ${tabAktif === "profil" ? "bg-blue-600 text-white shadow-lg shadow-blue-200" : tema === 'gelap' ? 'bg-slate-800 text-slate-300 border border-slate-700 hover:bg-slate-700' : 'bg-white text-slate-600 hover:bg-blue-50 border border-slate-100'}`}>
-                            <User size={20} /> Profil & Akun
-                        </button>
-                        <button onClick={() => setTabAktif("keamanan")} className={`w-full flex items-center gap-3 px-4 py-3 rounded-2xl text-sm font-semibold transition-all ${tabAktif === "keamanan" ? "bg-blue-600 text-white shadow-lg shadow-blue-200" : tema === 'gelap' ? 'bg-slate-800 text-slate-300 border border-slate-700 hover:bg-slate-700' : 'bg-white text-slate-600 hover:bg-blue-50 border border-slate-100'}`}>
-                            <Shield size={20} /> Keamanan
-                        </button>
-                        <button onClick={() => setTabAktif("cadangan")} className={`w-full flex items-center gap-3 px-4 py-3 rounded-2xl text-sm font-semibold transition-all ${tabAktif === "cadangan" ? "bg-blue-600 text-white shadow-lg shadow-blue-200" : tema === 'gelap' ? 'bg-slate-800 text-slate-300 border border-slate-700 hover:bg-slate-700' : 'bg-white text-slate-600 hover:bg-blue-50 border border-slate-100'}`}>
-                            <Download size={20} /> Ekspor Data
-                        </button>
-                        <button onClick={() => setTabAktif("tampilan")} className={`w-full flex items-center gap-3 px-4 py-3 rounded-2xl text-sm font-semibold transition-all ${tabAktif === "tampilan" ? "bg-blue-600 text-white shadow-lg shadow-blue-200" : tema === 'gelap' ? 'bg-slate-800 text-slate-300 border border-slate-700 hover:bg-slate-700' : 'bg-white text-slate-600 hover:bg-blue-50 border border-slate-100'}`}>
-                            <Palette size={20} /> Tampilan
-                        </button>
-                    </div>
-
-                    {/* KONTEN PENGATURAN (Kanan) */}
-                    <div className={`md:col-span-3 p-6 md:p-8 rounded-3xl shadow-sm border transition-colors ${tema === 'gelap' ? 'bg-slate-800 border-slate-700 text-white' : 'bg-white border-slate-100 text-slate-800'}`}>
-
-                        {/* --- TAB: PROFIL --- */}
-                        {tabAktif === "profil" && (
-                            <div className="animate-in fade-in slide-in-from-bottom-2">
-                                <div className="mb-6">
-                                    <h2 className="text-xl font-bold">Profil & Akun</h2>
-                                    <p className={`text-sm ${tema === 'gelap' ? 'text-slate-400' : 'text-slate-500'}`}>Kelola informasi pribadi dan kata sandi Anda.</p>
-                                </div>
-
-                                {pesan.teks && (
-                                    <div className={`mb-6 p-4 rounded-xl flex items-center gap-3 font-medium text-sm border ${pesan.tipe === 'sukses' ? 'bg-green-50 text-green-700 border-green-200' : 'bg-red-50 text-red-700 border-red-200'}`}>
-                                        {pesan.teks}
-                                    </div>
-                                )}
-
-                                <form onSubmit={simpanProfil} className="space-y-5">
-                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-                                        <div>
-                                            <label className={`block font-medium mb-2 text-sm ${tema === 'gelap' ? 'text-slate-300' : 'text-slate-700'}`}>Nama Lengkap / Panggilan</label>
-                                            <div className="relative">
-                                                <Type className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
-                                                <input type="text" value={nama} onChange={(e) => setNama(e.target.value)} placeholder="Misal: Dika" className={`w-full border rounded-xl p-3 pl-10 outline-none ${tema === 'gelap' ? 'bg-slate-900 border-slate-700 text-white focus:ring-2 focus:ring-blue-500' : 'bg-slate-50 border-slate-200 text-slate-800 focus:ring-2 focus:ring-blue-500'}`} />
-                                            </div>
-                                        </div>
-                                        <div>
-                                            <label className={`block font-medium mb-2 text-sm ${tema === 'gelap' ? 'text-slate-300' : 'text-slate-700'}`}>Nomor Telepon (Opsional)</label>
-                                            <div className="relative">
-                                                <Phone className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
-                                                <input type="text" value={telepon} onChange={(e) => setTelepon(e.target.value)} placeholder="08..." className={`w-full border rounded-xl p-3 pl-10 outline-none ${tema === 'gelap' ? 'bg-slate-900 border-slate-700 text-white focus:ring-2 focus:ring-blue-500' : 'bg-slate-50 border-slate-200 text-slate-800 focus:ring-2 focus:ring-blue-500'}`} />
-                                            </div>
-                                        </div>
-                                    </div>
-
-                                    <div>
-                                        <label className={`block font-medium mb-2 text-sm ${tema === 'gelap' ? 'text-slate-300' : 'text-slate-700'}`}>Alamat Email (Login)</label>
-                                        <div className="relative">
-                                            <Mail className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
-                                            <input type="email" value={email} disabled className={`w-full border rounded-xl p-3 pl-10 cursor-not-allowed outline-none ${tema === 'gelap' ? 'bg-slate-950 border-slate-800 text-slate-500' : 'bg-slate-100 border-slate-200 text-slate-500'}`} />
-                                        </div>
-                                    </div>
-
-                                    <div className={`pt-4 border-t ${tema === 'gelap' ? 'border-slate-700' : 'border-slate-100'}`}>
-                                        <label className={`block font-medium mb-2 text-sm ${tema === 'gelap' ? 'text-slate-300' : 'text-slate-700'}`}>Ganti Kata Sandi (Password)</label>
-                                        <div className="relative">
-                                            <Lock className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
-                                            <input type="password" value={passwordBaru} onChange={(e) => setPasswordBaru(e.target.value)} placeholder="Biarkan kosong jika tidak ingin mengubah sandi" className={`w-full border rounded-xl p-3 pl-10 outline-none ${tema === 'gelap' ? 'bg-slate-900 border-slate-700 text-white focus:ring-2 focus:ring-blue-500' : 'bg-slate-50 border-slate-200 text-slate-800 focus:ring-2 focus:ring-blue-500'}`} />
-                                        </div>
-                                        <p className="text-xs text-slate-400 mt-2">Minimal 6 karakter.</p>
-                                    </div>
-
-                                    <button type="submit" disabled={loading} className="mt-4 bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-6 rounded-xl transition-colors shadow-lg flex items-center gap-2">
-                                        {loading ? <Loader2 className="animate-spin" size={18} /> : <Save size={18} />}
-                                        {loading ? "Menyimpan..." : "Simpan Perubahan"}
-                                    </button>
-                                </form>
-                            </div>
-                        )}
-
-                        {/* --- TAB: KEAMANAN --- */}
-                        {tabAktif === "keamanan" && (
-                            <div className="animate-in fade-in slide-in-from-bottom-2 space-y-6">
-                                <div>
-                                    <h2 className="text-xl font-bold">Keamanan & Privasi</h2>
-                                    <p className={`text-sm ${tema === 'gelap' ? 'text-slate-400' : 'text-slate-500'}`}>Pantau status perlindungan dan sesi perangkat Anda.</p>
-                                </div>
-
-                                <div className="bg-green-50 border border-green-200 p-4 rounded-2xl flex items-start gap-4">
-                                    <CheckCircle2 className="text-green-600 shrink-0 mt-0.5" size={24} />
-                                    <div>
-                                        <h4 className="font-bold text-green-900 text-sm">Akun Dilindungi Supabase Auth</h4>
-                                        <p className="text-green-700 text-xs mt-0.5">Seluruh data transaksi dan foto struk Anda dienkripsi dengan standar keamanan tingkat tinggi.</p>
-                                    </div>
-                                </div>
-
-                                <div className={`border rounded-2xl p-5 space-y-4 ${tema === 'gelap' ? 'bg-slate-900/50 border-slate-700' : 'bg-slate-50/50 border-slate-100'}`}>
-                                    <h3 className="font-bold text-sm flex items-center gap-2">
-                                        <Monitor size={18} className="text-slate-400" /> Sesi Perangkat Saat Ini
-                                    </h3>
-                                    <div className={`flex justify-between items-center p-4 rounded-xl border ${tema === 'gelap' ? 'bg-slate-900 border-slate-700 text-white' : 'bg-white border-slate-100 text-slate-800'}`}>
-                                        <div>
-                                            <p className="text-sm font-bold">Browser Aktif (Web Session)</p>
-                                            <p className="text-xs text-slate-400">Login dengan email: {email}</p>
-                                        </div>
-                                        <span className="px-3 py-1 bg-green-100 text-green-700 rounded-full text-xs font-semibold">
-                                            Aman & Terhubung
-                                        </span>
-                                    </div>
-                                </div>
-
-                                <div className={`pt-4 border-t ${tema === 'gelap' ? 'border-slate-700' : 'border-slate-100'}`}>
-                                    <h3 className="font-bold text-sm mb-2">Keluar Jarak Jauh</h3>
-                                    <p className={`text-sm mb-4 ${tema === 'gelap' ? 'text-slate-400' : 'text-slate-500'}`}>Gunakan tombol ini jika Anda ingin mengakhiri sesi aktif di perangkat ini secara instan.</p>
-                                    <button onClick={tanganiLogout} className="bg-red-50 hover:bg-red-100 text-red-600 font-bold py-3 px-6 rounded-xl transition-colors text-sm flex items-center gap-2 border border-red-200">
-                                        <LogOut size={18} /> Akhiri Sesi & Keluar Sekarang
-                                    </button>
-                                </div>
-                            </div>
-                        )}
-
-                        {/* --- TAB: CADANGAN & EKSPOR --- */}
-                        {tabAktif === "cadangan" && (
-                            <div className="animate-in fade-in slide-in-from-bottom-2 space-y-6">
-                                <div>
-                                    <h2 className="text-xl font-bold">Cadangan & Ekspor Data</h2>
-                                    <p className={`text-sm ${tema === 'gelap' ? 'text-slate-400' : 'text-slate-500'}`}>Unduh catatan keuangan Anda untuk arsip pribadi atau analisis di Excel.</p>
-                                </div>
-
-                                <div className={`border p-5 rounded-2xl flex flex-col gap-5 ${tema === 'gelap' ? 'bg-blue-950/40 border-blue-900/50' : 'bg-blue-50 border-blue-100'}`}>
-
-                                    <div className="flex items-center gap-4">
-                                        <div className="p-3 bg-blue-600 text-white rounded-2xl shadow-md">
-                                            <FileSpreadsheet size={28} />
-                                        </div>
-                                        <div>
-                                            <h4 className="font-bold">Unduh Laporan Format CSV</h4>
-                                            <p className={`text-xs mt-0.5 ${tema === 'gelap' ? 'text-blue-300' : 'text-slate-500'}`}>Mencakup nama toko, tanggal, total nominal, rincian barang, dan tautan foto.</p>
-                                        </div>
-                                    </div>
-
-                                    {/* Bagian Kontrol Filter & Tombol Unduh */}
-                                    <div className="flex flex-col sm:flex-row gap-3">
-                                        <div className={`flex-1 border rounded-xl px-3 py-2 flex items-center gap-2 ${tema === 'gelap' ? 'bg-slate-900 border-slate-700' : 'bg-white border-slate-200'}`}>
-                                            <CalendarDays size={18} className="text-slate-400 shrink-0" />
-                                            <select
-                                                value={filterBulanEkspor}
-                                                onChange={(e) => setFilterBulanEkspor(e.target.value)}
-                                                className={`bg-transparent text-sm font-medium outline-none cursor-pointer w-full ${tema === 'gelap' ? 'text-white' : 'text-slate-700'}`}
-                                            >
-                                                <option value="Semua Waktu" className="text-slate-800">Semua Waktu</option>
-                                                {daftarPeriodeTersedia.map(p => (
-                                                    <option key={p} value={p} className="text-slate-800">{p}</option>
-                                                ))}
-                                            </select>
-                                        </div>
-
-                                        <button
-                                            onClick={eksporKeCSV}
-                                            disabled={loadingEkspor}
-                                            className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-6 rounded-xl transition-colors shadow-lg flex items-center justify-center gap-2 text-sm shrink-0 whitespace-nowrap"
-                                        >
-                                            {loadingEkspor ? <Loader2 className="animate-spin" size={18} /> : <Download size={18} />}
-                                            {loadingEkspor ? "Memproses..." : "Unduh Laporan"}
-                                        </button>
-                                    </div>
-
-                                </div>
-                            </div>
-                        )}
-
-                        {/* --- TAB: TAMPILAN --- */}
-                        {tabAktif === "tampilan" && (
-                            <div className="animate-in fade-in slide-in-from-bottom-2 space-y-6">
-                                <div>
-                                    <h2 className="text-xl font-bold">Pengaturan Tampilan</h2>
-                                    <p className={`text-sm ${tema === 'gelap' ? 'text-slate-400' : 'text-slate-500'}`}>Pilih tema antarmuka aplikasi sesuai kenyamanan Anda.</p>
-                                </div>
-
-                                <div className="grid grid-cols-2 gap-4">
-                                    <button
-                                        onClick={() => ubahTema("terang")}
-                                        className={`p-5 rounded-2xl border flex flex-col items-center gap-3 transition-all ${tema === 'terang' ? 'border-blue-600 bg-blue-50/50 text-blue-600 ring-2 ring-blue-100' : tema === 'gelap' ? 'border-slate-700 bg-slate-900 text-slate-400 hover:bg-slate-800' : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50'}`}
-                                    >
-                                        <Sun size={28} />
-                                        <span className="font-bold text-sm">Mode Terang (Light)</span>
-                                    </button>
-
-                                    <button
-                                        onClick={() => ubahTema("gelap")}
-                                        className={`p-5 rounded-2xl border flex flex-col items-center gap-3 transition-all ${tema === 'gelap' ? 'border-blue-600 bg-blue-900/40 text-white ring-2 ring-blue-500/30' : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50'}`}
-                                    >
-                                        <Moon size={28} />
-                                        <span className="font-bold text-sm">Mode Gelap (Dark)</span>
-                                    </button>
-                                </div>
-
-                                <p className="text-xs text-slate-400 mt-2">Preferensi tema Anda otomatis tersimpan di dalam profil akun Supabase.</p>
-                            </div>
-                        )}
-
-                    </div>
+                <div className="mt-6 rounded-lg border border-line">
+                  <div className="flex items-center justify-between gap-3 border-b border-line px-4 py-3">
+                    <p className="flex items-center gap-2 font-mono text-[10px] uppercase tracking-[0.16em] text-muted">
+                      <Monitor size={14} /> Sesi saat ini
+                    </p>
+                    <span className="font-mono text-[10px] uppercase tracking-[0.14em] text-positive">Aktif</span>
+                  </div>
+                  <div className="px-4 py-3">
+                    <p className="text-sm font-medium">Browser web</p>
+                    <p className="mt-0.5 text-xs text-muted">{email}</p>
+                  </div>
                 </div>
-            </div>
-        </main>
-    );
+
+                <div className="mt-6 border-t border-line pt-6">
+                  <p className="text-sm font-medium">Akhiri sesi</p>
+                  <p className="mt-1 text-sm text-muted">Keluar dari perangkat ini dan kembali ke halaman masuk.</p>
+                  <button
+                    onClick={tanganiLogout}
+                    className="mt-4 inline-flex items-center gap-2 rounded-md border border-line px-4 py-2.5 text-sm font-medium text-negative transition-colors hover:border-negative"
+                  >
+                    <LogOut size={16} /> Keluar sekarang
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {tabAktif === "cadangan" && (
+              <div>
+                <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-muted">Ekspor</p>
+                <h2 className="mt-2 font-serif text-2xl">Ekspor data</h2>
+                <p className="mt-1 text-sm text-muted">Unduh catatan keuangan untuk arsip atau analisis di Excel.</p>
+
+                <div className="mt-6 rounded-lg border border-line bg-surface p-4 sm:p-5">
+                  <div className="flex items-start gap-3">
+                    <FileSpreadsheet size={18} className="mt-0.5 shrink-0 text-muted" />
+                    <div>
+                      <p className="text-sm font-medium">Laporan CSV</p>
+                      <p className="mt-1 text-xs leading-relaxed text-muted">
+                        Berisi jenis, kategori, jumlah, keterangan, tanggal, metode, dan rincian barang.
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="mt-5 flex flex-col gap-3 sm:flex-row">
+                    <div className="relative flex-1">
+                      <CalendarDays size={15} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted" />
+                      <select
+                        value={filterBulanEkspor}
+                        onChange={(e) => setFilterBulanEkspor(e.target.value)}
+                        aria-label="Pilih periode ekspor"
+                        className="w-full appearance-none rounded-md border border-line bg-paper py-2.5 pl-9 pr-8 font-mono text-xs text-ink outline-none focus:border-accent"
+                      >
+                        <option value="Semua Waktu">Semua waktu</option>
+                        {daftarPeriodeTersedia.map((p) => (
+                          <option key={p} value={p}>{p}</option>
+                        ))}
+                      </select>
+                      <ChevronDown size={14} className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-muted" />
+                    </div>
+
+                    <button
+                      onClick={eksporKeCSV}
+                      disabled={loadingEkspor}
+                      className="inline-flex shrink-0 items-center justify-center gap-2 rounded-md bg-ink px-5 py-2.5 text-sm font-medium text-paper transition-opacity hover:opacity-90 disabled:opacity-60"
+                    >
+                      {loadingEkspor ? <Loader2 size={16} className="animate-spin" /> : <Download size={16} />}
+                      {loadingEkspor ? "Memproses..." : "Unduh CSV"}
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {tabAktif === "tampilan" && (
+              <div>
+                <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-muted">Tampilan</p>
+                <h2 className="mt-2 font-serif text-2xl">Tema</h2>
+                <p className="mt-1 text-sm text-muted">Pilih tampilan yang paling nyaman untuk mencatat.</p>
+
+                <div className="mt-6 grid gap-3 sm:grid-cols-2">
+                  <button
+                    onClick={() => ubahTema("terang")}
+                    className={`flex items-center gap-3 rounded-lg border p-4 text-left transition-colors ${
+                      tema === "terang" ? "border-accent bg-accent-soft" : "border-line bg-surface hover:border-accent"
+                    }`}
+                  >
+                    <Sun size={20} className={tema === "terang" ? "text-accent" : "text-muted"} />
+                    <span>
+                      <span className="block text-sm font-medium">Terang</span>
+                      <span className="mt-0.5 block text-xs text-muted">Kertas putih, tinta gelap</span>
+                    </span>
+                  </button>
+
+                  <button
+                    onClick={() => ubahTema("gelap")}
+                    className={`flex items-center gap-3 rounded-lg border p-4 text-left transition-colors ${
+                      tema === "gelap" ? "border-accent bg-accent-soft" : "border-line bg-surface hover:border-accent"
+                    }`}
+                  >
+                    <Moon size={20} className={tema === "gelap" ? "text-accent" : "text-muted"} />
+                    <span>
+                      <span className="block text-sm font-medium">Gelap</span>
+                      <span className="mt-0.5 block text-xs text-muted">Nyaman untuk malam</span>
+                    </span>
+                  </button>
+                </div>
+
+                <p className="mt-4 text-xs text-muted">Preferensi tema tersimpan di profil akun Anda.</p>
+              </div>
+            )}
+          </section>
+        </div>
+      </main>
+    </div>
+  );
 }

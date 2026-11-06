@@ -14,15 +14,16 @@ export default function ErrorPage({
   }, [error]);
 
   return (
-    <main className="min-h-screen bg-slate-50 dark:bg-slate-900 flex items-center justify-center p-6">
-      <div className="max-w-md w-full rounded-2xl border border-red-200 dark:border-red-900 bg-white dark:bg-slate-800 p-6 text-center shadow-sm">
-        <h1 className="text-lg font-bold text-slate-800 dark:text-white">Terjadi kesalahan</h1>
-        <p className="mt-2 text-sm text-slate-500 dark:text-slate-400">
-          Data tidak dapat dimuat. Silakan coba lagi.
+    <main className="flex min-h-screen items-center justify-center bg-paper p-6">
+      <div className="w-full max-w-sm border-l-2 border-negative pl-4">
+        <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-muted">Buku Kas</p>
+        <h1 className="mt-2 font-serif text-2xl">Data tidak dapat dimuat</h1>
+        <p className="mt-2 text-sm leading-relaxed text-muted">
+          Terjadi kesalahan saat mengambil data. Coba muat ulang halaman ini.
         </p>
         <button
           onClick={reset}
-          className="mt-5 rounded-xl bg-blue-600 px-5 py-2.5 text-sm font-semibold text-white hover:bg-blue-700"
+          className="mt-5 rounded-md bg-ink px-4 py-2.5 text-sm font-medium text-paper transition-opacity hover:opacity-90"
         >
           Coba lagi
         </button>
