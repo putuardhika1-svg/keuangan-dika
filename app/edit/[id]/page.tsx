@@ -5,10 +5,13 @@ import { useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { supabase } from '@/utils/supabase';
 import { JENIS_TRANSAKSI, KATEGORI, kategoriAman, isJenisTransaksi, type JenisTransaksi } from '@/utils/kategori';
-import { formatRupiah, pesanError as ambilPesanError, toNumber } from '@/utils/format';
-import { ArrowLeft, Loader2, Save } from 'lucide-react';
+import { buatId, formatRupiah, pesanError as ambilPesanError, toNumber } from '@/utils/format';
+import { kompresGambar } from '@/utils/kompres-gambar';
+import type { RincianBarang } from '@/utils/types';
+import { ArrowLeft, Camera, Loader2, PlusCircle, Save, Trash2, Upload } from 'lucide-react';
 
-type RincianBarang = { nama: string; qty: number; harga: number };
+const UKURAN_MAKS_FILE = 8 * 1024 * 1024;
+const POLA_URL = /^(https?:|data:|blob:)/;
 
 export default function EditTransaksi() {
   const router = useRouter();
@@ -26,7 +29,16 @@ export default function EditTransaksi() {
   const [keterangan, setKeterangan] = useState("");
   const [tanggal, setTanggal] = useState("");
   const [metodePembayaran, setMetodePembayaran] = useState("");
-  const [detailBarang, setDetailBarang] = useState<string | null>(null);
+  const [rincian, setRincian] = useState<RincianBarang[]>([]);
+  const [detailMentah, setDetailMentah] = useState<string | null>(null);
+  const [detailArray, setDetailArray] = useState(false);
+
+  const [buktiFoto, setBuktiFoto] = useState<string | null>(null);
+  const [urlBukti, setUrlBukti] = useState<string | null>(null);
+  const [pesanFoto, setPesanFoto] = useState("");
+  const [fileBaru, setFileBaru] = useState<File | null>(null);
+  const [previewBaru, setPreviewBaru] = useState<string | null>(null);
+  const [hapusFoto, setHapusFoto] = useState(false);
 
   useEffect(() => {
     const tarikDataLama = async () => {
@@ -39,7 +51,7 @@ export default function EditTransaksi() {
 
         const { data, error } = await supabase
           .from('transaksi')
-          .select('id, jenis, kategori, jumlah, keterangan, tanggal, metode_pembayaran, detail_barang')
+          .select('id, jenis, kategori, jumlah, keterangan, tanggal, metode_pembayaran, detail_barang, bukti_foto')
           .eq('id', idTransaksi)
           .eq('user_id', session.user.id)
           .maybeSingle();
@@ -58,7 +70,55 @@ export default function EditTransaksi() {
         setKeterangan(String(data.keterangan ?? ""));
         setTanggal(String(data.tanggal ?? ""));
         setMetodePembayaran(String(data.metode_pembayaran ?? ""));
-        setDetailBarang(data.detail_barang ?? null);
+
+        const detail = data.detail_barang;
+        if (detail) {
+          try {
+            const hasil = JSON.parse(detail);
+            if (Array.isArray(hasil)) {
+              setDetailArray(true);
+              setRincian(
+                hasil
+                  .map((item: unknown) => {
+                    const isi = (item ?? {}) as { nama?: unknown; qty?: unknown; harga?: unknown };
+                    return {
+                      nama: String(isi.nama ?? "").trim(),
+                      qty: Math.max(toNumber(isi.qty), 0),
+                      harga: Math.max(toNumber(isi.harga), 0),
+                    };
+                  })
+                  .filter((item) => item.nama.length > 0),
+              );
+            } else {
+              setDetailMentah(String(detail));
+            }
+          } catch {
+            setDetailMentah(String(detail));
+          }
+        }
+
+        const bukti = data.bukti_foto;
+        setBuktiFoto(bukti ?? null);
+        setHapusFoto(false);
+
+        if (bukti) {
+          if (POLA_URL.test(bukti)) {
+            setUrlBukti(bukti);
+          } else {
+            const { data: signed, error: errorSigned } = await supabase.storage
+              .from('bukti-struk')
+              .createSignedUrl(bukti, 3600);
+            if (errorSigned) {
+              console.warn("Gagal memuat foto struk:", errorSigned.message);
+              setPesanFoto("Gagal memuat foto. Anda tetap bisa mengganti atau menghapusnya.");
+            } else if (signed?.signedUrl) {
+              setUrlBukti(signed.signedUrl);
+            } else {
+              setPesanFoto("Foto struk tidak ditemukan di penyimpanan.");
+            }
+          }
+        }
+
         setSiap(true);
       } catch (error) {
         setPesanError(ambilPesanError(error, "Gagal memuat transaksi."));
@@ -70,11 +130,68 @@ export default function EditTransaksi() {
     if (idTransaksi) tarikDataLama();
   }, [idTransaksi, router]);
 
+  useEffect(() => {
+    if (!previewBaru) return;
+    return () => URL.revokeObjectURL(previewBaru);
+  }, [previewBaru]);
+
   const ubahJenis = (jenisBaru: JenisTransaksi) => {
     setJenis(jenisBaru);
     if (!KATEGORI[jenisBaru].includes(kategori)) {
       setKategori(KATEGORI[jenisBaru][0]);
     }
+  };
+
+  const pilihFoto = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const fileAsli = e.target.files?.[0];
+    e.target.value = "";
+    if (!fileAsli) return;
+
+    if (!fileAsli.type.startsWith("image/")) {
+      alert("File harus berupa gambar.");
+      return;
+    }
+
+    try {
+      const file = await kompresGambar(fileAsli);
+      if (file.size > UKURAN_MAKS_FILE) {
+        alert("Ukuran gambar terlalu besar. Maksimal 8 MB.");
+        return;
+      }
+      setFileBaru(file);
+      setPreviewBaru(URL.createObjectURL(file));
+      setPesanFoto("");
+      setHapusFoto(false);
+    } catch (error) {
+      alert("Gagal membaca gambar: " + ambilPesanError(error));
+    }
+  };
+
+  const batalkanFoto = () => {
+    setFileBaru(null);
+    setPreviewBaru(null);
+    setHapusFoto(true);
+    setUrlBukti(null);
+    setPesanFoto("");
+  };
+
+  const ubahRincian = (index: number, field: keyof RincianBarang, value: string) => {
+    setRincian((sebelumnya) =>
+      sebelumnya.map((item, i) => {
+        if (i !== index) return item;
+        if (field === "nama") return { ...item, nama: value };
+        if (field === "qty") return { ...item, qty: Math.max(Math.round(Number(value) || 0), 0) };
+        return { ...item, harga: Math.max(Math.round(Number(value) || 0), 0) };
+      }),
+    );
+  };
+
+  const tambahRincian = () => {
+    setRincian((sebelumnya) => [...sebelumnya, { nama: "", qty: 1, harga: 0 }]);
+  };
+
+  const hapusRincian = (index: number) => {
+    setRincian((sebelumnya) => sebelumnya.filter((_, i) => i !== index));
   };
 
   const simpanPerubahan = async (e: React.FormEvent) => {
@@ -102,6 +219,36 @@ export default function EditTransaksi() {
         return;
       }
 
+      let buktiBaru = buktiFoto;
+      if (hapusFoto && !fileBaru) {
+        buktiBaru = null;
+      }
+
+      if (fileBaru) {
+        const ekstensi = fileBaru.name.split(".").pop()?.toLowerCase().replace(/[^a-z0-9]/g, "") || "jpg";
+        const pathFoto = `${session.user.id}/${buatId()}.${ekstensi}`;
+        const { error: errorUpload } = await supabase.storage
+          .from("bukti-struk")
+          .upload(pathFoto, fileBaru, {
+            contentType: fileBaru.type || "image/jpeg",
+            upsert: false,
+          });
+
+        if (errorUpload) {
+          throw new Error(
+            "Gagal mengunggah foto struk. Pastikan bucket 'bukti-struk' sudah dibuat. " + errorUpload.message,
+          );
+        }
+        buktiBaru = pathFoto;
+      }
+
+      const rincianBersih = rincian.filter((item) => item.nama.trim().length > 0 && item.qty > 0);
+      const detailBaru = rincianBersih.length > 0
+        ? JSON.stringify(rincianBersih)
+        : detailArray
+          ? null
+          : detailMentah;
+
       const { error } = await supabase
         .from('transaksi')
         .update({
@@ -111,11 +258,25 @@ export default function EditTransaksi() {
           keterangan: keterangan.trim() || "-",
           tanggal,
           metode_pembayaran: metodePembayaran.trim() || null,
+          detail_barang: detailBaru,
+          bukti_foto: buktiBaru,
         })
         .eq('id', idTransaksi)
         .eq('user_id', session.user.id);
 
-      if (error) throw error;
+      if (error) {
+        if (fileBaru && buktiBaru) {
+          await supabase.storage.from('bukti-struk').remove([buktiBaru]);
+        }
+        throw error;
+      }
+
+      const buktiLama = buktiFoto;
+      if (buktiLama && !POLA_URL.test(buktiLama) && (hapusFoto || fileBaru)) {
+        const { error: errorHapus } = await supabase.storage.from('bukti-struk').remove([buktiLama]);
+        if (errorHapus) console.warn("Gagal menghapus foto lama:", errorHapus.message);
+      }
+
       router.push('/');
       router.refresh();
     } catch (error) {
@@ -124,26 +285,6 @@ export default function EditTransaksi() {
       setMenyimpan(false);
     }
   };
-
-  const rincian: RincianBarang[] = (() => {
-    if (!detailBarang) return [];
-    try {
-      const hasil = JSON.parse(detailBarang);
-      if (!Array.isArray(hasil)) return [];
-      return hasil
-        .map((item: unknown) => {
-          const data = (item ?? {}) as { nama?: unknown; qty?: unknown; harga?: unknown };
-          return {
-            nama: String(data.nama ?? ""),
-            qty: toNumber(data.qty),
-            harga: toNumber(data.harga),
-          };
-        })
-        .filter((item) => item.nama.length > 0);
-    } catch {
-      return [];
-    }
-  })();
 
   return (
     <div className="min-h-screen bg-paper text-ink">
@@ -251,30 +392,123 @@ export default function EditTransaksi() {
               </div>
             </div>
 
-            {rincian.length > 0 && (
-              <section className="rounded-lg border border-line">
-                <div className="border-b border-line px-4 py-3">
-                  <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-muted">Rincian dari struk</p>
+            <section className="rounded-lg border border-line">
+              <div className="border-b border-line px-4 py-3">
+                <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-muted">Foto struk</p>
+                <p className="mt-0.5 text-xs text-muted">Ganti atau hapus bukti foto transaksi ini.</p>
+              </div>
+              <div className="px-4 py-4">
+                {previewBaru || urlBukti ? (
+                  // eslint-disable-next-line @next/next/no-img-element -- preview lokal / signed URL Supabase
+                  <img
+                    src={previewBaru ?? urlBukti ?? ""}
+                    alt="Bukti struk"
+                    className="max-h-72 w-full rounded-md border border-line object-contain"
+                  />
+                ) : (
+                  <p className="text-sm text-muted">{pesanFoto || "Belum ada foto struk."}</p>
+                )}
+
+                <div className="mt-3 flex flex-wrap gap-2">
+                  <label className="inline-flex cursor-pointer items-center justify-center gap-2 rounded-md border border-line bg-surface px-3 py-2 text-xs font-medium transition-colors hover:border-accent hover:text-accent">
+                    <Upload size={14} /> {previewBaru || urlBukti ? "Ganti foto" : "Upload foto"}
+                    <input type="file" accept="image/*" className="hidden" onChange={pilihFoto} />
+                  </label>
+                  <label className="inline-flex cursor-pointer items-center justify-center gap-2 rounded-md border border-line bg-surface px-3 py-2 text-xs font-medium transition-colors hover:border-accent hover:text-accent">
+                    <Camera size={14} /> Ambil foto
+                    <input type="file" accept="image/*" capture="environment" className="hidden" onChange={pilihFoto} />
+                  </label>
+                  {(previewBaru || urlBukti) && (
+                    <button
+                      type="button"
+                      onClick={batalkanFoto}
+                      className="inline-flex items-center justify-center gap-2 rounded-md border border-line px-3 py-2 text-xs font-medium text-negative transition-colors hover:border-negative"
+                    >
+                      <Trash2 size={14} /> Hapus foto
+                    </button>
+                  )}
                 </div>
+              </div>
+            </section>
+
+            <section className="rounded-lg border border-line">
+              <div className="flex items-center justify-between gap-3 border-b border-line px-4 py-3">
+                <div>
+                  <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-muted">Rincian barang</p>
+                  <p className="mt-0.5 text-xs text-muted">Opsional, bisa dikoreksi manual.</p>
+                </div>
+                <button type="button" onClick={tambahRincian} className="inline-flex shrink-0 items-center gap-1 text-xs font-medium text-accent hover:underline">
+                  <PlusCircle size={14} /> Tambah item
+                </button>
+              </div>
+
+              {rincian.length === 0 ? (
+                <p className="px-4 py-4 text-sm text-muted">
+                  {detailMentah ?? "Belum ada rincian barang."}
+                </p>
+              ) : (
                 <ul className="divide-y divide-line">
                   {rincian.map((item, index) => (
-                    <li key={`${item.nama}-${index}`} className="flex items-start justify-between gap-4 px-4 py-2.5">
-                      <span className="min-w-0">
-                        <span className="block truncate text-sm">{item.nama}</span>
-                        <span className="mt-0.5 block font-mono text-[10px] text-muted">{item.qty} × {formatRupiah(item.harga)}</span>
-                      </span>
-                      <span className="angka shrink-0 font-mono text-sm">{formatRupiah(item.qty * item.harga)}</span>
+                    <li key={index} className="grid gap-2 px-4 py-3 sm:grid-cols-[1fr_70px_110px_32px] sm:items-end">
+                      <div>
+                        <label htmlFor={`edit-rincian-nama-${index}`} className="font-mono text-[9px] uppercase tracking-[0.14em] text-muted">Nama</label>
+                        <input
+                          id={`edit-rincian-nama-${index}`}
+                          type="text"
+                          value={item.nama}
+                          onChange={(e) => ubahRincian(index, "nama", e.target.value)}
+                          placeholder="Nama barang"
+                          className="mt-1 w-full rounded-md border border-line bg-paper px-2.5 py-1.5 text-sm outline-none focus:border-accent"
+                        />
+                      </div>
+                      <div>
+                        <label htmlFor={`edit-rincian-qty-${index}`} className="font-mono text-[9px] uppercase tracking-[0.14em] text-muted">Qty</label>
+                        <input
+                          id={`edit-rincian-qty-${index}`}
+                          type="number"
+                          min={1}
+                          step={1}
+                          inputMode="numeric"
+                          value={item.qty}
+                          onChange={(e) => ubahRincian(index, "qty", e.target.value)}
+                          className="angka mt-1 w-full rounded-md border border-line bg-paper px-2.5 py-1.5 font-mono text-sm outline-none focus:border-accent"
+                        />
+                      </div>
+                      <div>
+                        <label htmlFor={`edit-rincian-harga-${index}`} className="font-mono text-[9px] uppercase tracking-[0.14em] text-muted">Harga</label>
+                        <input
+                          id={`edit-rincian-harga-${index}`}
+                          type="number"
+                          min={0}
+                          step={1}
+                          inputMode="numeric"
+                          value={item.harga}
+                          onChange={(e) => ubahRincian(index, "harga", e.target.value)}
+                          className="angka mt-1 w-full rounded-md border border-line bg-paper px-2.5 py-1.5 font-mono text-sm outline-none focus:border-accent"
+                        />
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => hapusRincian(index)}
+                        aria-label={`Hapus ${item.nama || `item ${index + 1}`}`}
+                        className="flex h-9 items-center justify-center rounded-md text-muted transition-colors hover:bg-paper hover:text-negative"
+                      >
+                        <Trash2 size={15} />
+                      </button>
                     </li>
                   ))}
                 </ul>
+              )}
+
+              {rincian.length > 0 && (
                 <div className="flex items-center justify-between border-t border-line px-4 py-3">
                   <span className="text-sm font-medium">Total rincian</span>
                   <span className="angka font-mono text-sm font-medium">
                     {formatRupiah(rincian.reduce((total, item) => total + item.qty * item.harga, 0))}
                   </span>
                 </div>
-              </section>
-            )}
+              )}
+            </section>
 
             <div className="flex items-center justify-between gap-4 border-t border-line pt-5">
               <Link href="/" className="text-sm text-muted transition-colors hover:text-ink">Batal</Link>

@@ -6,11 +6,14 @@ import Link from 'next/link';
 import { supabase } from '@/utils/supabase';
 import { formatRupiah, getBulanTahun, getInisial, getNamaTampilan, pecahTanggal, pesanError, terapkanTema, toNumber } from '@/utils/format';
 import type { Anggaran, PesanChat, Transaksi } from '@/utils/types';
+import { KATEGORI } from '@/utils/kategori';
 import { Bar, BarChart, ResponsiveContainer, Tooltip as ChartTooltip, XAxis, YAxis } from 'recharts';
-import { Calendar, CalendarDays, ChevronDown, CreditCard, Edit2, Home as HomeIcon, Image as ImageIcon, LogOut, Moon, Plus, PlusCircle, Receipt, Save, Send, Settings, Sun, Trash2, X } from 'lucide-react';
+import { Calendar, CalendarDays, ChevronDown, CreditCard, Edit2, Home as HomeIcon, Image as ImageIcon, Loader2, LogOut, Moon, Plus, PlusCircle, Receipt, Save, Send, Settings, Sun, Trash2, X } from 'lucide-react';
 
 const KUNCI_ANGGARAN_LAMA = 'budgetKeuanganArdhika';
 const KUNCI_ANGGARAN = 'budgetKeuanganArdhika:';
+const SEMUA_PERIODE = 'Semua periode';
+const KATEGORI_ANGGARAN = Array.from(new Set(Object.values(KATEGORI).flat()));
 const ANGGARAN_DEFAULT: Anggaran[] = [
   { kategori: "Makanan", batas: 1500000 },
   { kategori: "Transportasi", batas: 500000 },
@@ -22,6 +25,7 @@ export default function Home() {
   const [transaksi, setTransaksi] = useState<Transaksi[]>([]);
   const [transaksiTerpilih, setTransaksiTerpilih] = useState<Transaksi | null>(null);
   const [urlBukti, setUrlBukti] = useState<string | null>(null);
+  const [urlBuktiError, setUrlBuktiError] = useState<string | null>(null);
   const [userId, setUserId] = useState("");
 
   // STATE FILTER
@@ -31,6 +35,7 @@ export default function Home() {
   // STATE ANGGARAN (BUDGETING) & EDIT MODE
   const [targetAnggaran, setTargetAnggaran] = useState(ANGGARAN_DEFAULT);
   const [isEditingAnggaran, setIsEditingAnggaran] = useState(false);
+  const [menyimpanAnggaran, setMenyimpanAnggaran] = useState(false);
 
   // STATE UNTUK FITUR TANYA JAWAB / SIMULASI BELI
   const [pertanyaanUser, setPertanyaanUser] = useState("");
@@ -174,9 +179,16 @@ export default function Home() {
     }
   };
 
+  const tutupDetail = () => {
+    setTransaksiTerpilih(null);
+    setUrlBukti(null);
+    setUrlBuktiError(null);
+  };
+
   const bukaDetail = async (transaksi: Transaksi) => {
     setTransaksiTerpilih(transaksi);
     setUrlBukti(null);
+    setUrlBuktiError(null);
 
     try {
       const { data, error } = await supabase
@@ -200,11 +212,26 @@ export default function Home() {
         .from('bukti-struk')
         .createSignedUrl(bukti, 3600);
       if (errorSigned) throw errorSigned;
-      if (signed) setUrlBukti(signed.signedUrl);
+      if (!signed?.signedUrl) throw new Error("Foto struk tidak ditemukan di penyimpanan.");
+      setUrlBukti(signed.signedUrl);
     } catch (error) {
       console.warn("Gagal membuka foto struk:", error);
+      setUrlBuktiError(pesanError(error, "Gagal memuat foto struk."));
     }
   };
+
+  useEffect(() => {
+    if (!transaksiTerpilih) return;
+    const tanganiEscape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        setTransaksiTerpilih(null);
+        setUrlBukti(null);
+        setUrlBuktiError(null);
+      }
+    };
+    window.addEventListener('keydown', tanganiEscape);
+    return () => window.removeEventListener('keydown', tanganiEscape);
+  }, [transaksiTerpilih]);
 
   const hapusTransaksi = async (id: string) => {
     const konfirmasi = window.confirm("Yakin ingin menghapus transaksi ini?");
@@ -223,8 +250,7 @@ export default function Home() {
         if (errorFoto) console.warn("Gagal menghapus foto struk:", errorFoto.message);
       }
 
-      setTransaksiTerpilih(null);
-      setUrlBukti(null);
+      tutupDetail();
       fetchData(userId);
     } catch (error) {
       alert("Gagal menghapus data: " + pesanError(error));
@@ -240,11 +266,21 @@ export default function Home() {
       }))
       .filter((item) => item.kategori.length > 0);
 
-    if (userId) simpanAnggaranLokal(userId, bersih);
-    setTargetAnggaran(bersih);
-    setIsEditingAnggaran(false);
+    const duplikat = bersih.filter(
+      (item, index) => bersih.findIndex((lain) => lain.kategori === item.kategori) !== index,
+    );
+    if (duplikat.length > 0) {
+      alert(`Kategori anggaran tidak boleh duplikat: ${duplikat.map((item) => item.kategori).join(', ')}.`);
+      return;
+    }
 
-    if (!userId) return;
+    if (!userId) {
+      setTargetAnggaran(bersih);
+      setIsEditingAnggaran(false);
+      return;
+    }
+
+    setMenyimpanAnggaran(true);
 
     try {
       if (bersih.length > 0) {
@@ -275,7 +311,16 @@ export default function Home() {
         if (errorHapus) throw errorHapus;
       }
     } catch (error) {
-      console.warn("Anggaran tersimpan lokal; tabel budgets belum siap.", error);
+      console.warn("Anggaran tersimpan lokal; sinkronisasi database gagal.", error);
+      alert(
+        "Anggaran tersimpan di perangkat, tetapi gagal disinkronkan ke database.\n\n" +
+        pesanError(error, "Pastikan migration Supabase sudah dijalankan."),
+      );
+    } finally {
+      simpanAnggaranLokal(userId, bersih);
+      setTargetAnggaran(bersih);
+      setIsEditingAnggaran(false);
+      setMenyimpanAnggaran(false);
     }
   };
 
@@ -302,10 +347,11 @@ export default function Home() {
   };
 
   const setPeriodeUnik = new Set(transaksi.map(t => getBulanTahun(t.tanggal)));
-  if (periodeAktif) {
+  if (periodeAktif && periodeAktif !== SEMUA_PERIODE) {
     setPeriodeUnik.add(periodeAktif);
   }
-  const daftarPeriodeTersedia = Array.from(setPeriodeUnik).filter(p => p !== "Lainnya");
+  const daftarPeriodeTersedia = Array.from(setPeriodeUnik)
+    .filter((periode) => periode !== "Lainnya" && periode !== SEMUA_PERIODE);
 
   // --- PERHITUNGAN TOTAL SALDO & FILTER ---
   const totalPemasukanSemua = transaksi.filter(t => t.jenis === 'Pemasukan').reduce((a, b) => a + toNumber(b.jumlah), 0);
@@ -314,7 +360,9 @@ export default function Home() {
   const totalPiutangSemua = transaksi.filter(t => t.jenis === 'Piutang').reduce((a, b) => a + toNumber(b.jumlah), 0);
   const saldoKasUtama = (totalPemasukanSemua + totalHutangSemua) - (totalPengeluaranSemua + totalPiutangSemua);
 
-  const transaksiPeriode = transaksi.filter(t => getBulanTahun(t.tanggal) === periodeAktif);
+  const transaksiPeriode = periodeAktif === SEMUA_PERIODE
+    ? transaksi
+    : transaksi.filter(t => getBulanTahun(t.tanggal) === periodeAktif);
 
   const totalPemasukan = transaksiPeriode.filter(t => t.jenis === 'Pemasukan').reduce((a, b) => a + toNumber(b.jumlah), 0);
   const totalPengeluaran = transaksiPeriode.filter(t => t.jenis === 'Pengeluaran').reduce((a, b) => a + toNumber(b.jumlah), 0);
@@ -331,10 +379,27 @@ export default function Home() {
     value: kategoriGrup[kategori]
   }));
 
+  // Anggaran dan rekomendasi selalu mengacu ke bulan berjalan,
+  // meskipun pengguna sedang melihat "Semua periode".
+  const periodeBulanIni = new Date().toLocaleDateString('id-ID', { month: 'long', year: 'numeric' });
+  const transaksiBulanIni = transaksi.filter(t => getBulanTahun(t.tanggal) === periodeBulanIni);
+  const totalPemasukanBulanIni = transaksiBulanIni
+    .filter(t => t.jenis === 'Pemasukan')
+    .reduce((a, b) => a + toNumber(b.jumlah), 0);
+  const totalPengeluaranBulanIni = transaksiBulanIni
+    .filter(t => t.jenis === 'Pengeluaran')
+    .reduce((a, b) => a + toNumber(b.jumlah), 0);
+  const kategoriGrupBulanIni = transaksiBulanIni
+    .filter(t => t.jenis === 'Pengeluaran')
+    .reduce<Record<string, number>>((acc, curr) => {
+      const kategori = curr.kategori || 'Lainnya';
+      acc[kategori] = (acc[kategori] || 0) + toNumber(curr.jumlah);
+      return acc;
+    }, {});
 
   // --- LOGIKA REKOMENDASI BULANAN ---
   const dapatkanRekomendasiKeuangan = () => {
-    if (transaksiPeriode.length === 0) {
+    if (transaksiBulanIni.length === 0) {
       return {
         tipe: "info",
         pesan: "Belum ada transaksi tercatat di bulan ini. Mulai catat pemasukan atau pengeluaran pertamamu!"
@@ -342,7 +407,7 @@ export default function Home() {
     }
 
     for (const anggaran of targetAnggaran) {
-      const terpakai = kategoriGrup[anggaran.kategori] || 0;
+      const terpakai = kategoriGrupBulanIni[anggaran.kategori] || 0;
       if (terpakai > anggaran.batas) {
         return {
           tipe: "bahaya",
@@ -356,9 +421,9 @@ export default function Home() {
       }
     }
 
-    if (totalPemasukan > 0) {
-      const sisaBulanIni = totalPemasukan - totalPengeluaran;
-      const rasioTabungan = (sisaBulanIni / totalPemasukan) * 100;
+    if (totalPemasukanBulanIni > 0) {
+      const sisaBulanIni = totalPemasukanBulanIni - totalPengeluaranBulanIni;
+      const rasioTabungan = (sisaBulanIni / totalPemasukanBulanIni) * 100;
 
       if (rasioTabungan >= 30) {
         return {
@@ -413,7 +478,7 @@ export default function Home() {
       } else if (teksInput.includes("liburan") || teksInput.includes("jalan-jalan")) {
         jawabanBot = `Untuk rencana liburan, pastikan Anda menggunakan sisa anggaran bulanan yang tidak terpakai. Jangan mengambil dana dari alokasi tabungan darurat atau pos wajib!`;
       } else {
-        jawabanBot = `Halo ${namaTampilan}! Berdasarkan data bulan ${periodeAktif}, total pengeluaran Anda adalah ${formatRupiah(totalPengeluaran)} dari pemasukan ${formatRupiah(totalPemasukan)}. Pastikan setiap rencana pengeluaran besar telah memperhitungkan sisa kas saat ini.`;
+        jawabanBot = `Halo ${namaTampilan}! Berdasarkan data bulan ini, total pengeluaran Anda adalah ${formatRupiah(totalPengeluaranBulanIni)} dari pemasukan ${formatRupiah(totalPemasukanBulanIni)}. Pastikan setiap rencana pengeluaran besar telah memperhitungkan sisa kas saat ini.`;
       }
 
       setRiwayatChat(prev => [...prev, { sender: "bot", teks: jawabanBot }]);
@@ -458,6 +523,7 @@ export default function Home() {
               onChange={(e) => setPeriodeAktif(e.target.value)}
               className="w-full appearance-none bg-transparent py-1 pl-6 pr-5 font-mono text-sm text-ink outline-none"
             >
+              <option value={SEMUA_PERIODE} className="bg-surface text-ink">{SEMUA_PERIODE}</option>
               {daftarPeriodeTersedia.map((p) => (
                 <option key={p} value={p} className="bg-surface text-ink">{p}</option>
               ))}
@@ -515,6 +581,7 @@ export default function Home() {
                 aria-label="Pilih periode"
                 className="appearance-none rounded-md border border-line bg-surface py-2 pl-3 pr-9 font-mono text-xs text-ink outline-none"
               >
+                <option value={SEMUA_PERIODE}>{SEMUA_PERIODE}</option>
                 {daftarPeriodeTersedia.map((p) => (
                   <option key={p} value={p}>{p}</option>
                 ))}
@@ -668,9 +735,16 @@ export default function Home() {
                   <h2 className="font-serif text-xl">Anggaran</h2>
                   <button
                     onClick={() => (isEditingAnggaran ? simpanPerubahanAnggaran() : setIsEditingAnggaran(true))}
-                    className="flex items-center gap-1.5 rounded-md px-2 py-1 text-xs font-medium text-muted transition-colors hover:bg-paper hover:text-ink"
+                    disabled={menyimpanAnggaran}
+                    className="flex items-center gap-1.5 rounded-md px-2 py-1 text-xs font-medium text-muted transition-colors hover:bg-paper hover:text-ink disabled:opacity-60"
                   >
-                    {isEditingAnggaran ? <><Save size={14} /> Simpan</> : <><Edit2 size={14} /> Ubah</>}
+                    {menyimpanAnggaran ? (
+                      <><Loader2 size={14} className="animate-spin" /> Menyimpan</>
+                    ) : isEditingAnggaran ? (
+                      <><Save size={14} /> Simpan</>
+                    ) : (
+                      <><Edit2 size={14} /> Ubah</>
+                    )}
                   </button>
                 </div>
 
@@ -679,14 +753,18 @@ export default function Home() {
                     {targetAnggaran.map((anggaran, index) => (
                       <div key={index} className="grid grid-cols-[1fr_92px_28px] items-end gap-2">
                         <div>
-                          <label className="font-mono text-[9px] uppercase tracking-[0.14em] text-muted">Kategori</label>
-                          <input
-                            type="text"
+                          <label htmlFor={`anggaran-kategori-${index}`} className="font-mono text-[9px] uppercase tracking-[0.14em] text-muted">Kategori</label>
+                          <select
+                            id={`anggaran-kategori-${index}`}
                             value={anggaran.kategori}
                             onChange={(e) => ubahDataAnggaran(index, "kategori", e.target.value)}
-                            placeholder="Makanan"
                             className="mt-1 w-full rounded-md border border-line bg-paper px-2.5 py-2 text-sm outline-none focus:border-accent"
-                          />
+                          >
+                            <option value="" disabled>Pilih kategori</option>
+                            {Array.from(new Set([...KATEGORI_ANGGARAN, anggaran.kategori].filter(Boolean))).map((kategori) => (
+                              <option key={kategori} value={kategori}>{kategori}</option>
+                            ))}
+                          </select>
                         </div>
                         <div>
                           <label className="font-mono text-[9px] uppercase tracking-[0.14em] text-muted">Batas (Rp)</label>
@@ -719,7 +797,7 @@ export default function Home() {
                 ) : (
                   <div className="mt-5 space-y-4">
                     {targetAnggaran.map((anggaran) => {
-                      const terpakai = kategoriGrup[anggaran.kategori] || 0;
+                      const terpakai = kategoriGrupBulanIni[anggaran.kategori] || 0;
                       const sisa = Math.max(anggaran.batas - terpakai, 0);
                       const lewat = terpakai > anggaran.batas;
                       const persentase = anggaran.batas > 0
@@ -756,8 +834,9 @@ export default function Home() {
               <details className="group rounded-xl border border-line bg-surface">
                 <summary className="flex cursor-pointer list-none items-center justify-between gap-3 p-5 [&::-webkit-details-marker]:hidden">
                   <div>
-                    <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-muted">Simulasi</p>
+                    <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-muted">Simulasi sederhana</p>
                     <p className="mt-1 text-sm font-medium">Uji rencana pengeluaran</p>
+                    <p className="mt-0.5 text-xs text-muted">Berbasis aturan, bukan analisis AI.</p>
                   </div>
                   <ChevronDown size={16} className="text-muted transition-transform group-open:rotate-180" />
                 </summary>
@@ -814,10 +893,16 @@ export default function Home() {
       </nav>
 
       {transaksiTerpilih && (
-        <div className="fixed inset-0 z-50 flex justify-end bg-black/50 backdrop-blur-sm" onClick={() => { setTransaksiTerpilih(null); setUrlBukti(null); }}>
-          <div className="animate-in flex h-full w-full max-w-md flex-col border-l border-line bg-surface shadow-2xl" onClick={(e) => e.stopPropagation()}>
+        <div className="fixed inset-0 z-50 flex justify-end bg-black/50 backdrop-blur-sm" onClick={tutupDetail}>
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="detail-transaksi-title"
+            className="animate-in flex h-full w-full max-w-md flex-col border-l border-line bg-surface shadow-2xl"
+            onClick={(e) => e.stopPropagation()}
+          >
             <div className="flex items-center justify-between border-b border-line px-6 py-5">
-              <h2 className="font-serif text-xl">Detail transaksi</h2>
+              <h2 id="detail-transaksi-title" className="font-serif text-xl">Detail transaksi</h2>
               <div className="flex items-center gap-1">
                 <Link href={`/edit/${transaksiTerpilih.id}`} aria-label="Edit transaksi" className="rounded-md p-2 text-muted transition-colors hover:bg-paper hover:text-accent">
                   <Edit2 size={18} />
@@ -825,7 +910,7 @@ export default function Home() {
                 <button onClick={() => hapusTransaksi(transaksiTerpilih.id)} aria-label="Hapus transaksi" className="rounded-md p-2 text-muted transition-colors hover:bg-paper hover:text-negative">
                   <Trash2 size={18} />
                 </button>
-                <button onClick={() => { setTransaksiTerpilih(null); setUrlBukti(null); }} aria-label="Tutup detail" className="rounded-md p-2 text-muted transition-colors hover:bg-paper hover:text-ink">
+                <button onClick={tutupDetail} aria-label="Tutup detail" className="rounded-md p-2 text-muted transition-colors hover:bg-paper hover:text-ink">
                   <X size={18} />
                 </button>
               </div>
@@ -897,7 +982,18 @@ export default function Home() {
                   </h3>
                   {urlBukti ? (
                     // eslint-disable-next-line @next/next/no-img-element -- signed URL dari Supabase Storage
-                    <img src={urlBukti} alt="Bukti struk" className="mt-3 w-full rounded-lg border border-line" />
+                    <img src={urlBukti} alt="Bukti struk" loading="lazy" className="mt-3 w-full rounded-lg border border-line" />
+                  ) : urlBuktiError ? (
+                    <div className="mt-3 border-l-2 border-negative pl-3">
+                      <p className="text-sm text-negative">{urlBuktiError}</p>
+                      <button
+                        type="button"
+                        onClick={() => bukaDetail(transaksiTerpilih)}
+                        className="mt-2 text-xs font-medium text-accent hover:underline"
+                      >
+                        Coba lagi
+                      </button>
+                    </div>
                   ) : (
                     <p className="mt-3 text-sm text-muted">Memuat foto...</p>
                   )}

@@ -1,51 +1,48 @@
 "use client";
 
-import { useCallback, useEffect, useRef } from 'react';
+import { useEffect, useRef } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import { supabase } from '@/utils/supabase';
 
-// Batas tidak aktif sebelum sesi diakhiri (5 menit).
-const WAKTU_TIMEOUT = 5 * 60 * 1000;
+// Batas tidak aktif sebelum sesi diakhiri (15 menit).
+const WAKTU_TIMEOUT = 15 * 60 * 1000;
+const INTERVAL_CEK = 30 * 1000;
+const AKTIVITAS = ['mousemove', 'mousedown', 'keydown', 'scroll', 'touchstart'];
 
 export default function AutoLogout() {
     const router = useRouter();
     const pathname = usePathname();
-    const timeoutRef = useRef<NodeJS.Timeout | null>(null);
-
-    const resetTimer = useCallback(() => {
-        if (timeoutRef.current) clearTimeout(timeoutRef.current);
-
-        timeoutRef.current = setTimeout(async () => {
-            // Jangan jalankan aksi logout berulang jika pengguna memang sudah di halaman login
-            if (pathname !== '/login') {
-                await supabase.auth.signOut();
-                alert("Sesi Anda telah berakhir karena tidak ada aktivitas. Silakan login kembali demi keamanan.");
-                router.replace('/login');
-            }
-        }, WAKTU_TIMEOUT);
-    }, [pathname, router]);
+    const aktivitasTerakhir = useRef(0);
+    const sedangLogout = useRef(false);
 
     useEffect(() => {
-        // Daftar aktivitas fisik yang akan me-reset timer (mencegah logout)
-        const events = ['mousemove', 'mousedown', 'keydown', 'scroll', 'touchstart'];
+        aktivitasTerakhir.current = Date.now();
+        if (pathname === '/login') sedangLogout.current = false;
 
-        const tanganiAktivitas = () => {
-            resetTimer();
+        const catatAktivitas = () => {
+            aktivitasTerakhir.current = Date.now();
         };
 
-        // Pasang alat pendeteksi aktivitas ke seluruh halaman web
-        events.forEach(event => window.addEventListener(event, tanganiAktivitas));
+        AKTIVITAS.forEach((event) => window.addEventListener(event, catatAktivitas, { passive: true }));
 
-        // Mulai hitung mundur pertama kali saat aplikasi dibuka
-        resetTimer();
+        const cekIdle = async () => {
+            if (sedangLogout.current) return;
+            if (Date.now() - aktivitasTerakhir.current < WAKTU_TIMEOUT) return;
+            if (pathname === '/login') return;
 
-        // Matikan pendeteksi saat aplikasi ditutup agar tidak membebani memori HP/Laptop
+            sedangLogout.current = true;
+            await supabase.auth.signOut();
+            alert("Sesi Anda telah berakhir karena tidak ada aktivitas. Silakan login kembali demi keamanan.");
+            router.replace('/login');
+        };
+
+        const interval = setInterval(cekIdle, INTERVAL_CEK);
+
         return () => {
-            events.forEach(event => window.removeEventListener(event, tanganiAktivitas));
-            if (timeoutRef.current) clearTimeout(timeoutRef.current);
+            AKTIVITAS.forEach((event) => window.removeEventListener(event, catatAktivitas));
+            clearInterval(interval);
         };
-    }, [resetTimer]);
+    }, [pathname, router]);
 
-    // Komponen ini tidak memiliki tampilan (menghilang di layar)
     return null;
 }

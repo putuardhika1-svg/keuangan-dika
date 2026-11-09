@@ -42,7 +42,52 @@ create policy "budgets_delete_own"
   using ((select auth.uid()) = user_id);
 
 -- =========================================================
--- 2. RLS TABEL TRANSAKSI
+-- 2. TABEL TRANSAKSI
+-- =========================================================
+create table if not exists public.transaksi (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references auth.users (id) on delete cascade,
+  jenis text not null check (jenis in ('Pemasukan', 'Pengeluaran', 'Hutang', 'Piutang')),
+  kategori text not null,
+  jumlah numeric(14, 2) not null check (jumlah > 0),
+  keterangan text not null default '-',
+  tanggal date not null,
+  metode_pembayaran text,
+  detail_barang text,
+  bukti_foto text,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+-- Lengkapi kolom untuk database lama yang belum memilikinya.
+alter table public.transaksi add column if not exists metode_pembayaran text;
+alter table public.transaksi add column if not exists detail_barang text;
+alter table public.transaksi add column if not exists bukti_foto text;
+alter table public.transaksi add column if not exists created_at timestamptz not null default now();
+alter table public.transaksi add column if not exists updated_at timestamptz not null default now();
+
+create or replace function public.set_updated_at()
+returns trigger
+language plpgsql
+as $$
+begin
+  new.updated_at = now();
+  return new;
+end;
+$$;
+
+drop trigger if exists transaksi_set_updated_at on public.transaksi;
+create trigger transaksi_set_updated_at
+  before update on public.transaksi
+  for each row execute function public.set_updated_at();
+
+drop trigger if exists budgets_set_updated_at on public.budgets;
+create trigger budgets_set_updated_at
+  before update on public.budgets
+  for each row execute function public.set_updated_at();
+
+-- =========================================================
+-- 2b. RLS TABEL TRANSAKSI
 -- =========================================================
 alter table public.transaksi enable row level security;
 

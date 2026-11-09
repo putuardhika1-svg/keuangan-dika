@@ -6,9 +6,9 @@ import Link from "next/link";
 import { supabase } from "@/utils/supabase";
 import { JENIS_TRANSAKSI, KATEGORI, kategoriAman, isJenisTransaksi, type JenisTransaksi } from "@/utils/kategori";
 import { buatId, formatRupiah, pesanError } from "@/utils/format";
-import { fileKeDataUrl, kompresGambar } from "@/utils/kompres-gambar";
+import { kompresGambar } from "@/utils/kompres-gambar";
 import type { RincianBarang } from "@/utils/types";
-import { Camera, Loader2, Save, ArrowLeft, Trash2, Upload } from "lucide-react";
+import { Camera, Loader2, Save, ArrowLeft, Trash2, Upload, PlusCircle } from "lucide-react";
 
 const UKURAN_MAKS_FILE = 8 * 1024 * 1024;
 
@@ -58,6 +58,10 @@ export default function TambahTransaksi() {
       return;
     }
 
+    const rincianBersih = rincianBarang.filter(
+      (item) => item.nama.trim().length > 0 && item.qty > 0,
+    );
+
     setLoadingSubmit(true);
 
     try {
@@ -70,7 +74,6 @@ export default function TambahTransaksi() {
       }
 
       let buktiFoto: string | null = null;
-      let gagalUploadFoto = false;
 
       if (fileStruk) {
         const ekstensi = fileStruk.name.split(".").pop()?.toLowerCase().replace(/[^a-z0-9]/g, "") || "jpg";
@@ -83,12 +86,11 @@ export default function TambahTransaksi() {
           });
 
         if (errorUpload) {
-          console.warn("Bucket storage belum siap, menyimpan foto di database:", errorUpload.message);
-          if (fileStruk.size <= 1.5 * 1024 * 1024) {
-            buktiFoto = await fileKeDataUrl(fileStruk);
-          } else {
-            gagalUploadFoto = true;
-          }
+          console.error("Gagal mengunggah foto struk:", errorUpload.message);
+          const lanjutTanpaFoto = window.confirm(
+            "Foto struk gagal diunggah. Pastikan bucket 'bukti-struk' sudah dibuat (jalankan migration Supabase).\n\nSimpan transaksi tanpa foto?",
+          );
+          if (!lanjutTanpaFoto) return;
         } else {
           buktiFoto = pathFoto;
         }
@@ -106,7 +108,7 @@ export default function TambahTransaksi() {
             tanggal,
             keterangan: keterangan.trim() || "-", // Fallback wajib diisi
             metode_pembayaran: metodePembayaran.trim() || null,
-            detail_barang: rincianBarang.length > 0 ? JSON.stringify(rincianBarang) : null,
+            detail_barang: rincianBersih.length > 0 ? JSON.stringify(rincianBersih) : null,
             bukti_foto: buktiFoto,
             user_id: session.user.id
           }
@@ -114,9 +116,7 @@ export default function TambahTransaksi() {
 
       if (error) throw error;
 
-      alert(gagalUploadFoto
-        ? "Transaksi berhasil disimpan, tetapi foto struk gagal diunggah."
-        : "Transaksi berhasil disimpan!");
+      alert("Transaksi berhasil disimpan!");
       router.push("/");
       router.refresh();
 
@@ -200,11 +200,32 @@ export default function TambahTransaksi() {
     } catch (error) {
       const pesan = pesanError(error, "Gagal membaca struk.");
       console.error("Error scanning struk:", pesan);
-      alert("Gagal membaca struk! Alasan: " + pesan);
+      alert(
+        "Gagal membaca struk. Foto tetap terlampir, silakan isi data secara manual atau coba scan lagi.\n\nAlasan: " + pesan,
+      );
     } finally {
       setLoadingScan(false);
       e.target.value = '';
     }
+  };
+
+  const ubahRincian = (index: number, field: keyof RincianBarang, value: string) => {
+    setRincianBarang((sebelumnya) =>
+      sebelumnya.map((item, i) => {
+        if (i !== index) return item;
+        if (field === "nama") return { ...item, nama: value };
+        if (field === "qty") return { ...item, qty: Math.max(Math.round(Number(value) || 0), 0) };
+        return { ...item, harga: Math.max(Math.round(Number(value) || 0), 0) };
+      }),
+    );
+  };
+
+  const tambahRincian = () => {
+    setRincianBarang((sebelumnya) => [...sebelumnya, { nama: "", qty: 1, harga: 0 }]);
+  };
+
+  const hapusRincian = (index: number) => {
+    setRincianBarang((sebelumnya) => sebelumnya.filter((_, i) => i !== index));
   };
 
   return (
@@ -358,33 +379,82 @@ export default function TambahTransaksi() {
             </datalist>
           </div>
 
-          {rincianBarang.length > 0 && (
-            <section className="rounded-lg border border-line">
-              <div className="flex items-center justify-between border-b border-line px-4 py-3">
-                <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-muted">Rincian dari struk</p>
-                <button type="button" onClick={() => setRincianBarang([])} className="flex items-center gap-1 text-xs font-medium text-negative hover:underline">
-                  <Trash2 size={13} /> Hapus
-                </button>
+          <section className="rounded-lg border border-line">
+            <div className="flex items-center justify-between gap-3 border-b border-line px-4 py-3">
+              <div>
+                <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-muted">Rincian barang</p>
+                <p className="mt-0.5 text-xs text-muted">Opsional, bisa diisi manual atau dari hasil scan.</p>
               </div>
+              <button type="button" onClick={tambahRincian} className="inline-flex shrink-0 items-center gap-1 text-xs font-medium text-accent hover:underline">
+                <PlusCircle size={14} /> Tambah item
+              </button>
+            </div>
+
+            {rincianBarang.length === 0 ? (
+              <p className="px-4 py-4 text-sm text-muted">Belum ada rincian barang.</p>
+            ) : (
               <ul className="divide-y divide-line">
                 {rincianBarang.map((item, index) => (
-                  <li key={`${item.nama}-${index}`} className="flex items-start justify-between gap-4 px-4 py-2.5">
-                    <span className="min-w-0">
-                      <span className="block truncate text-sm">{item.nama}</span>
-                      <span className="mt-0.5 block font-mono text-[10px] text-muted">{item.qty} × {formatRupiah(item.harga)}</span>
-                    </span>
-                    <span className="angka shrink-0 font-mono text-sm">{formatRupiah(item.qty * item.harga)}</span>
+                  <li key={index} className="grid gap-2 px-4 py-3 sm:grid-cols-[1fr_70px_110px_32px] sm:items-end">
+                    <div>
+                      <label htmlFor={`rincian-nama-${index}`} className="font-mono text-[9px] uppercase tracking-[0.14em] text-muted">Nama</label>
+                      <input
+                        id={`rincian-nama-${index}`}
+                        type="text"
+                        value={item.nama}
+                        onChange={(e) => ubahRincian(index, "nama", e.target.value)}
+                        placeholder="Nama barang"
+                        className="mt-1 w-full rounded-md border border-line bg-paper px-2.5 py-1.5 text-sm outline-none focus:border-accent"
+                      />
+                    </div>
+                    <div>
+                      <label htmlFor={`rincian-qty-${index}`} className="font-mono text-[9px] uppercase tracking-[0.14em] text-muted">Qty</label>
+                      <input
+                        id={`rincian-qty-${index}`}
+                        type="number"
+                        min={1}
+                        step={1}
+                        inputMode="numeric"
+                        value={item.qty}
+                        onChange={(e) => ubahRincian(index, "qty", e.target.value)}
+                        className="angka mt-1 w-full rounded-md border border-line bg-paper px-2.5 py-1.5 font-mono text-sm outline-none focus:border-accent"
+                      />
+                    </div>
+                    <div>
+                      <label htmlFor={`rincian-harga-${index}`} className="font-mono text-[9px] uppercase tracking-[0.14em] text-muted">Harga</label>
+                      <input
+                        id={`rincian-harga-${index}`}
+                        type="number"
+                        min={0}
+                        step={1}
+                        inputMode="numeric"
+                        value={item.harga}
+                        onChange={(e) => ubahRincian(index, "harga", e.target.value)}
+                        className="angka mt-1 w-full rounded-md border border-line bg-paper px-2.5 py-1.5 font-mono text-sm outline-none focus:border-accent"
+                      />
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => hapusRincian(index)}
+                      aria-label={`Hapus ${item.nama || `item ${index + 1}`}`}
+                      className="flex h-9 items-center justify-center rounded-md text-muted transition-colors hover:bg-paper hover:text-negative"
+                    >
+                      <Trash2 size={15} />
+                    </button>
                   </li>
                 ))}
               </ul>
+            )}
+
+            {rincianBarang.length > 0 && (
               <div className="flex items-center justify-between border-t border-line px-4 py-3">
                 <span className="text-sm font-medium">Total rincian</span>
                 <span className="angka font-mono text-sm font-medium">
                   {formatRupiah(rincianBarang.reduce((total, item) => total + item.qty * item.harga, 0))}
                 </span>
               </div>
-            </section>
-          )}
+            )}
+          </section>
 
           <div className="flex items-center justify-between gap-4 border-t border-line pt-5">
             <Link href="/" className="text-sm text-muted transition-colors hover:text-ink">Batal</Link>

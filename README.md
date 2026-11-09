@@ -1,36 +1,43 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Buku Kas — Keuangan Pribadi
 
-## Getting Started
+Aplikasi pencatatan keuangan pribadi berbasis Next.js App Router, Supabase, dan Gemini (scan struk).
 
-First, run the development server:
+## Menjalankan lokal
+
+1. Salin `.env.example` menjadi `.env.local`, lalu isi nilainya.
+2. Jalankan migration `supabase/migrations/20261106000000_keuangan_pribadi.sql` di SQL Editor Supabase. File ini aman dijalankan berulang dan membuat:
+   - tabel `transaksi` + RLS + index,
+   - tabel `budgets` + RLS,
+   - bucket private `bukti-struk` + policy.
+3. Pasang dependensi dan jalankan:
 
 ```bash
+npm install
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Buka [http://localhost:3000](http://localhost:3000).
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Variabel lingkungan
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+| Variabel | Wajib | Keterangan |
+| --- | --- | --- |
+| `NEXT_PUBLIC_SUPABASE_URL` | Ya | URL project Supabase |
+| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Ya | Anon key Supabase (bukan service_role) |
+| `GEMINI_API_KEY` | Ya untuk scan struk | API key Google AI Studio |
+| `GEMINI_MODEL` | Tidak | Default `gemini-2.5-flash`; ada fallback otomatis ke model Flash lain |
 
-## Learn More
+## Pemeriksaan
 
-To learn more about Next.js, take a look at the following resources:
+```bash
+npm run lint
+npm run typecheck
+npm run build
+```
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+## Catatan perilaku
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+- Scan struk dibatasi 10 permintaan/menit per pengguna (limiter in-memory per instance).
+- Ukuran foto struk maksimal 8 MB dan otomatis dikompres di browser.
+- Sesi keluar otomatis setelah 15 menit tanpa aktivitas.
+- Foto struk disimpan di bucket private `bukti-struk`; aplikasi membuat signed URL saat menampilkan.

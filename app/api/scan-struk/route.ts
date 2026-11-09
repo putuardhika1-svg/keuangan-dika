@@ -7,6 +7,8 @@ import { pesanError } from '@/utils/format';
 export const maxDuration = 60;
 
 const UKURAN_MAKS_FILE = 8 * 1024 * 1024;
+const MODEL_DEFAULT = 'gemini-2.5-flash';
+const MODEL_CADANGAN = ['gemini-2.5-flash', 'gemini-2.0-flash'];
 const MIME_DIIZINKAN = new Set([
   'image/jpeg',
   'image/jpg',
@@ -57,6 +59,52 @@ function ekstrakJson(teks: string): unknown {
     throw new Error('Format hasil AI tidak valid');
   }
   return JSON.parse(bersih.slice(awal, akhir + 1));
+}
+
+function daftarModel(): string[] {
+  const dikonfigurasi = process.env.GEMINI_MODEL?.trim();
+  return Array.from(
+    new Set([dikonfigurasi, MODEL_DEFAULT, ...MODEL_CADANGAN].filter((model): model is string => Boolean(model))),
+  );
+}
+
+function modelTidakTersedia(error: unknown): boolean {
+  const status = (error as { status?: number } | null)?.status;
+  const pesan = pesanError(error, '').toLowerCase();
+  return status === 404 || /not found|not supported|unsupported|invalid model|is not available/.test(pesan);
+}
+
+async function ekstrakDenganModel(
+  genAI: GoogleGenerativeAI,
+  models: string[],
+  prompt: string,
+  base64Data: string,
+  mimeType: string,
+): Promise<string> {
+  let errorTerakhir: unknown = null;
+
+  for (const nama of models) {
+    try {
+      const model = genAI.getGenerativeModel({
+        model: nama,
+        generationConfig: { responseMimeType: 'application/json' },
+      });
+      const result = await model.generateContent([
+        prompt,
+        { inlineData: { data: base64Data, mimeType } },
+      ]);
+      return await result.response.text();
+    } catch (error) {
+      errorTerakhir = error;
+      if (!modelTidakTersedia(error)) throw error;
+      console.warn(`Model ${nama} tidak tersedia, mencoba model berikutnya.`);
+    }
+  }
+
+  const detail = pesanError(errorTerakhir, '');
+  throw new Error(
+    `Model Gemini tidak tersedia (${models.join(', ')}).${detail ? ` ${detail}` : ''}`,
+  );
 }
 
 function normalisasiHasil(mentah: unknown) {
@@ -164,9 +212,7 @@ export async function POST(req: NextRequest) {
     const mimeType = file.type.toLowerCase();
 
     const genAI = new GoogleGenerativeAI(apiKey);
-    const model = genAI.getGenerativeModel({
-      model: process.env.GEMINI_MODEL?.trim() || "gemini-3.8-flash",
-    });
+    const models = daftarModel();
 
     const prompt = `
       Analisis foto struk belanja/transaksi ini secara teliti.
@@ -192,12 +238,7 @@ export async function POST(req: NextRequest) {
       }
     `;
 
-    const result = await model.generateContent([
-      prompt,
-      { inlineData: { data: base64Data, mimeType } }
-    ]);
-
-    const responseText = await result.response.text();
+    const responseText = await ekstrakDenganModel(genAI, models, prompt, base64Data, mimeType);
     const data = normalisasiHasil(ekstrakJson(responseText));
 
     return NextResponse.json(data, {
