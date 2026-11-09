@@ -66,6 +66,32 @@ alter table public.transaksi add column if not exists bukti_foto text;
 alter table public.transaksi add column if not exists created_at timestamptz not null default now();
 alter table public.transaksi add column if not exists updated_at timestamptz not null default now();
 
+-- Pastikan database lama juga punya validasi nilai.
+do $$
+begin
+  if not exists (
+    select 1 from pg_constraint
+    where conrelid = 'public.transaksi'::regclass
+      and contype = 'c'
+      and conname in ('transaksi_jenis_check', 'transaksi_jenis_valid')
+  ) then
+    alter table public.transaksi
+      add constraint transaksi_jenis_valid
+      check (jenis in ('Pemasukan', 'Pengeluaran', 'Hutang', 'Piutang')) not valid;
+  end if;
+
+  if not exists (
+    select 1 from pg_constraint
+    where conrelid = 'public.transaksi'::regclass
+      and contype = 'c'
+      and conname in ('transaksi_jumlah_check', 'transaksi_jumlah_positif')
+  ) then
+    alter table public.transaksi
+      add constraint transaksi_jumlah_positif
+      check (jumlah > 0) not valid;
+  end if;
+end $$;
+
 create or replace function public.set_updated_at()
 returns trigger
 language plpgsql

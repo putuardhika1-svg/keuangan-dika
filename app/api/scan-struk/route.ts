@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { GoogleGenerativeAI } from '@google/generative-ai';
+import { GoogleGenAI } from '@google/genai';
 import { createClient } from '@supabase/supabase-js';
 import { KATEGORI } from '@/utils/kategori';
 import { pesanError } from '@/utils/format';
@@ -55,9 +55,23 @@ function bolehMeminta(userId: string): boolean {
 }
 
 function tanggalHariIni(): string {
-  const sekarang = new Date();
-  const lokal = new Date(sekarang.getTime() - sekarang.getTimezoneOffset() * 60000);
-  return lokal.toISOString().split('T')[0];
+  const bagian = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Asia/Jakarta',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).formatToParts(new Date());
+  const ambil = (tipe: string) => bagian.find((item) => item.type === tipe)?.value ?? '';
+  return `${ambil('year')}-${ambil('month')}-${ambil('day')}`;
+}
+
+function tanggalValid(teks: string): boolean {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(teks)) return false;
+  const [tahun, bulan, hari] = teks.split('-').map(Number);
+  const tanggal = new Date(Date.UTC(tahun, bulan - 1, hari));
+  return tanggal.getUTCFullYear() === tahun
+    && tanggal.getUTCMonth() === bulan - 1
+    && tanggal.getUTCDate() === hari;
 }
 
 function ekstrakJson(teks: string): unknown {
@@ -82,11 +96,11 @@ function perluCobaModelLain(error: unknown): boolean {
   const pesan = pesanError(error, '').toLowerCase();
   return status === 404
     || status === 503
-    || /not found|not supported|unsupported|invalid model|is not available|high demand|overloaded|service unavailable|unavailable|timeout|timed out|aborted|deadline/.test(pesan);
+    || /not found|not_found|no longer available|not supported|unsupported|invalid model|is not available|high demand|overloaded|service unavailable|unavailable|timeout|timed out|aborted|deadline/.test(pesan);
 }
 
 async function ekstrakDenganModel(
-  genAI: GoogleGenerativeAI,
+  genAI: GoogleGenAI,
   models: string[],
   prompt: string,
   base64Data: string,
@@ -95,28 +109,45 @@ async function ekstrakDenganModel(
   let errorTerakhir: unknown = null;
   const mulai = Date.now();
 
-  for (const nama of models) {
-    const sisaTotal = BATAS_TOTAL_MODEL_MS - (Date.now() - mulai);
-    if (sisaTotal < 5_000) break;
+  for (let putaran = 0; putaran < 2; putaran++) {
+    for (const nama of models) {
+      const sisaTotal = BATAS_TOTAL_MODEL_MS - (Date.now() - mulai);
+      if (sisaTotal < 5_000) break;
 
-    try {
-      const model = genAI.getGenerativeModel({
-        model: nama,
-        generationConfig: { responseMimeType: 'application/json' },
-      });
-      const result = await model.generateContent(
-        [
-          prompt,
-          { inlineData: { data: base64Data, mimeType } },
-        ],
-        { timeout: Math.min(BATAS_PER_MODEL_MS, sisaTotal) },
-      );
-      return await result.response.text();
-    } catch (error) {
-      errorTerakhir = error;
-      if (!perluCobaModelLain(error)) throw error;
-      console.warn(`Model ${nama} gagal/tidak tersedia, mencoba model berikutnya.`);
+      try {
+        const result = await genAI.models.generateContent({
+          model: nama,
+          contents: [
+            {
+              role: 'user',
+              parts: [
+                { text: prompt },
+                { inlineData: { data: base64Data, mimeType } },
+              ],
+            },
+          ],
+          config: {
+            responseMimeType: 'application/json',
+            httpOptions: {
+              timeout: Math.min(BATAS_PER_MODEL_MS, sisaTotal),
+              retryOptions: { attempts: 1 },
+            },
+          },
+        });
+
+        const teks = result.text?.trim();
+        if (!teks) throw new Error('Hasil AI kosong');
+        return teks;
+      } catch (error) {
+        errorTerakhir = error;
+        if (!perluCobaModelLain(error)) throw error;
+        console.warn(`Model ${nama} gagal/tidak tersedia, mencoba model berikutnya.`);
+      }
     }
+
+    const sisa = BATAS_TOTAL_MODEL_MS - (Date.now() - mulai);
+    if (sisa < 8_000) break;
+    await new Promise((resolve) => setTimeout(resolve, 1_000));
   }
 
   const detail = pesanError(errorTerakhir, '');
@@ -135,7 +166,7 @@ function normalisasiHasil(mentah: unknown) {
   const kategori = KATEGORI.Pengeluaran.includes(kategoriMentah) ? kategoriMentah : 'Lainnya';
 
   const tanggalMentah = String(data.tanggal ?? '').trim();
-  const tanggal = /^\d{4}-\d{2}-\d{2}$/.test(tanggalMentah) ? tanggalMentah : tanggalHariIni();
+  const tanggal = tanggalValid(tanggalMentah) ? tanggalMentah : tanggalHariIni();
 
   const nominalMentah = String(data.nominal ?? '').replace(/[^\d.-]/g, '');
   const nominal = Math.max(Math.round(Number(nominalMentah) || 0), 0);
@@ -229,7 +260,7 @@ export async function POST(req: NextRequest) {
     const base64Data = Buffer.from(buffer).toString("base64");
     const mimeType = file.type.toLowerCase();
 
-    const genAI = new GoogleGenerativeAI(apiKey);
+    const genAI = new GoogleGenAI({ apiKey });
     const models = daftarModel();
 
     const prompt = `

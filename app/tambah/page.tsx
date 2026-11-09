@@ -30,6 +30,7 @@ export default function TambahTransaksi() {
   // State Loading & AI
   const [loadingSubmit, setLoadingSubmit] = useState(false);
   const [loadingScan, setLoadingScan] = useState(false);
+  const [scanGagal, setScanGagal] = useState(false);
 
   useEffect(() => {
     const sekarang = new Date();
@@ -63,6 +64,7 @@ export default function TambahTransaksi() {
     );
 
     setLoadingSubmit(true);
+    let pathFotoBaru: string | null = null;
 
     try {
       const { data: { session } } = await supabase.auth.getSession();
@@ -93,6 +95,7 @@ export default function TambahTransaksi() {
           if (!lanjutTanpaFoto) return;
         } else {
           buktiFoto = pathFoto;
+          pathFotoBaru = pathFoto;
         }
       }
 
@@ -116,6 +119,8 @@ export default function TambahTransaksi() {
 
       if (error) throw error;
 
+      pathFotoBaru = null;
+
       alert("Transaksi berhasil disimpan!");
       router.push("/");
       router.refresh();
@@ -123,6 +128,14 @@ export default function TambahTransaksi() {
     } catch (error) {
       const pesan = pesanError(error, "Gagal menyimpan transaksi.");
       console.error("Gagal menyimpan transaksi:", pesan);
+
+      if (pathFotoBaru) {
+        const { error: errorHapus } = await supabase.storage
+          .from("bukti-struk")
+          .remove([pathFotoBaru]);
+        if (errorHapus) console.warn("Gagal membersihkan foto yatim:", errorHapus.message);
+      }
+
       alert("Terjadi kesalahan saat menyimpan transaksi: " + pesan);
     } finally {
       setLoadingSubmit(false);
@@ -130,26 +143,17 @@ export default function TambahTransaksi() {
   };
 
   // 2. FUNGSI SCAN STRUK
-  const handleScanStruk = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const fileAsli = e.target.files?.[0];
-    if (!fileAsli) return;
-
-    if (!fileAsli.type.startsWith("image/")) {
-      alert("File harus berupa gambar struk.");
-      e.target.value = "";
-      return;
-    }
-
+  const prosesScan = async (file: File) => {
     setLoadingScan(true);
+    setScanGagal(false);
+
     try {
       const { data: { session } } = await supabase.auth.getSession();
-      if (!session) throw new Error("Sesi tidak ditemukan. Silakan login ulang.");
-
-      const file = await kompresGambar(fileAsli);
-      if (file.size > UKURAN_MAKS_FILE) {
-        throw new Error("Ukuran gambar terlalu besar. Maksimal 8 MB.");
+      if (!session) {
+        alert("Sesi tidak ditemukan. Silakan login ulang.");
+        router.push("/login");
+        return;
       }
-      setFileStruk(file);
 
       const formData = new FormData();
       formData.append("file", file);
@@ -179,11 +183,11 @@ export default function TambahTransaksi() {
         setRincianBarang(
           data.rincian_barang
             .map((item: unknown) => {
-              const data = (item ?? {}) as { nama?: unknown; qty?: unknown; harga?: unknown };
+              const isi = (item ?? {}) as { nama?: unknown; qty?: unknown; harga?: unknown };
               return {
-                nama: String(data.nama ?? "").trim(),
-                qty: Math.max(Math.round(Number(data.qty) || 1), 1),
-                harga: Math.max(Math.round(Number(data.harga) || 0), 0),
+                nama: String(isi.nama ?? "").trim(),
+                qty: Math.max(Math.round(Number(isi.qty) || 1), 1),
+                harga: Math.max(Math.round(Number(isi.harga) || 0), 0),
               };
             })
             .filter((item: RincianBarang) => item.nama.length > 0)
@@ -200,6 +204,7 @@ export default function TambahTransaksi() {
     } catch (error) {
       const pesan = pesanError(error, "Gagal membaca struk.");
       console.error("Error scanning struk:", pesan);
+      setScanGagal(true);
       const layananSibuk = /503|high demand|overloaded|unavailable/i.test(pesan);
       alert(
         layananSibuk
@@ -208,8 +213,36 @@ export default function TambahTransaksi() {
       );
     } finally {
       setLoadingScan(false);
-      e.target.value = '';
     }
+  };
+
+  const handleScanStruk = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const fileAsli = e.target.files?.[0];
+    e.target.value = "";
+    if (!fileAsli) return;
+
+    if (!fileAsli.type.startsWith("image/")) {
+      alert("File harus berupa gambar struk.");
+      return;
+    }
+
+    try {
+      const file = await kompresGambar(fileAsli);
+      if (file.size > UKURAN_MAKS_FILE) {
+        throw new Error("Ukuran gambar terlalu besar. Maksimal 8 MB.");
+      }
+      setFileStruk(file);
+      setScanGagal(false);
+      await prosesScan(file);
+    } catch (error) {
+      setScanGagal(true);
+      alert("Gagal menyiapkan foto struk: " + pesanError(error));
+    }
+  };
+
+  const ulangiScan = async () => {
+    if (!fileStruk) return;
+    await prosesScan(fileStruk);
   };
 
   const ubahRincian = (index: number, field: keyof RincianBarang, value: string) => {
@@ -271,11 +304,31 @@ export default function TambahTransaksi() {
           </div>
 
           {fileStruk && (
-            <div className="mt-4 flex items-center justify-between gap-3 border-t border-line pt-3">
-              <p className="truncate font-mono text-[11px] text-muted">{fileStruk.name}</p>
-              <button type="button" onClick={() => setFileStruk(null)} className="shrink-0 text-xs font-medium text-negative hover:underline">
-                Hapus foto
-              </button>
+            <div className="mt-4 flex flex-wrap items-center justify-between gap-3 border-t border-line pt-3">
+              <p className="min-w-0 flex-1 truncate font-mono text-[11px] text-muted">{fileStruk.name}</p>
+              <div className="flex shrink-0 items-center gap-3">
+                {scanGagal && (
+                  <button
+                    type="button"
+                    onClick={ulangiScan}
+                    disabled={loadingScan}
+                    className="inline-flex items-center gap-1.5 text-xs font-medium text-accent hover:underline disabled:opacity-60"
+                  >
+                    {loadingScan && <Loader2 size={13} className="animate-spin" />}
+                    Coba scan lagi
+                  </button>
+                )}
+                <button
+                  type="button"
+                  onClick={() => {
+                    setFileStruk(null);
+                    setScanGagal(false);
+                  }}
+                  className="text-xs font-medium text-negative hover:underline"
+                >
+                  Hapus foto
+                </button>
+              </div>
             </div>
           )}
         </section>
