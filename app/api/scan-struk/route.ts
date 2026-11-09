@@ -9,6 +9,8 @@ export const maxDuration = 60;
 const UKURAN_MAKS_FILE = 8 * 1024 * 1024;
 const MODEL_DEFAULT = 'gemini-3.8-flash';
 const MODEL_CADANGAN = ['gemini-3.8-flash', 'gemini-3.7-flash', 'gemini-3.6-flash', 'gemini-3.5-flash'];
+const BATAS_PER_MODEL_MS = 20_000;
+const BATAS_TOTAL_MODEL_MS = 50_000;
 const MIME_DIIZINKAN = new Set([
   'image/jpeg',
   'image/jpg',
@@ -73,7 +75,7 @@ function perluCobaModelLain(error: unknown): boolean {
   const pesan = pesanError(error, '').toLowerCase();
   return status === 404
     || status === 503
-    || /not found|not supported|unsupported|invalid model|is not available|high demand|overloaded|service unavailable|unavailable/.test(pesan);
+    || /not found|not supported|unsupported|invalid model|is not available|high demand|overloaded|service unavailable|unavailable|timeout|timed out|aborted|deadline/.test(pesan);
 }
 
 async function ekstrakDenganModel(
@@ -84,17 +86,24 @@ async function ekstrakDenganModel(
   mimeType: string,
 ): Promise<string> {
   let errorTerakhir: unknown = null;
+  const mulai = Date.now();
 
   for (const nama of models) {
+    const sisaTotal = BATAS_TOTAL_MODEL_MS - (Date.now() - mulai);
+    if (sisaTotal < 5_000) break;
+
     try {
       const model = genAI.getGenerativeModel({
         model: nama,
         generationConfig: { responseMimeType: 'application/json' },
       });
-      const result = await model.generateContent([
-        prompt,
-        { inlineData: { data: base64Data, mimeType } },
-      ]);
+      const result = await model.generateContent(
+        [
+          prompt,
+          { inlineData: { data: base64Data, mimeType } },
+        ],
+        { timeout: Math.min(BATAS_PER_MODEL_MS, sisaTotal) },
+      );
       return await result.response.text();
     } catch (error) {
       errorTerakhir = error;
