@@ -1,12 +1,3 @@
-export function fileKeDataUrl(file: File): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => resolve(String(reader.result));
-    reader.onerror = () => reject(reader.error ?? new Error('Gagal membaca file'));
-    reader.readAsDataURL(file);
-  });
-}
-
 function bacaGambar(file: File): Promise<HTMLImageElement> {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();

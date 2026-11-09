@@ -25,7 +25,7 @@ Buka [http://localhost:3000](http://localhost:3000).
 | `NEXT_PUBLIC_SUPABASE_URL` | Ya | URL project Supabase |
 | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Ya | Anon key Supabase (bukan service_role) |
 | `GEMINI_API_KEY` | Ya untuk scan struk | API key Google AI Studio |
-| `GEMINI_MODEL` | Tidak | Default `gemini-2.5-flash`; ada fallback otomatis ke model Flash lain |
+| `GEMINI_MODEL` | Tidak | Default `gemini-3.8-flash`; ada fallback otomatis ke model Flash lain |
 
 ## Pemeriksaan
 

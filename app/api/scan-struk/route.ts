@@ -7,8 +7,8 @@ import { pesanError } from '@/utils/format';
 export const maxDuration = 60;
 
 const UKURAN_MAKS_FILE = 8 * 1024 * 1024;
-const MODEL_DEFAULT = 'gemini-2.5-flash';
-const MODEL_CADANGAN = ['gemini-2.5-flash', 'gemini-2.0-flash'];
+const MODEL_DEFAULT = 'gemini-3.8-flash';
+const MODEL_CADANGAN = ['gemini-3.8-flash', 'gemini-3.7-flash', 'gemini-3.6-flash', 'gemini-3.5-flash'];
 const MIME_DIIZINKAN = new Set([
   'image/jpeg',
   'image/jpg',
@@ -68,10 +68,12 @@ function daftarModel(): string[] {
   );
 }
 
-function modelTidakTersedia(error: unknown): boolean {
+function perluCobaModelLain(error: unknown): boolean {
   const status = (error as { status?: number } | null)?.status;
   const pesan = pesanError(error, '').toLowerCase();
-  return status === 404 || /not found|not supported|unsupported|invalid model|is not available/.test(pesan);
+  return status === 404
+    || status === 503
+    || /not found|not supported|unsupported|invalid model|is not available|high demand|overloaded|service unavailable|unavailable/.test(pesan);
 }
 
 async function ekstrakDenganModel(
@@ -96,8 +98,8 @@ async function ekstrakDenganModel(
       return await result.response.text();
     } catch (error) {
       errorTerakhir = error;
-      if (!modelTidakTersedia(error)) throw error;
-      console.warn(`Model ${nama} tidak tersedia, mencoba model berikutnya.`);
+      if (!perluCobaModelLain(error)) throw error;
+      console.warn(`Model ${nama} gagal/tidak tersedia, mencoba model berikutnya.`);
     }
   }
 

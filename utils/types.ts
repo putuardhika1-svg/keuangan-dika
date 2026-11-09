@@ -1,5 +1,3 @@
-export type JenisTransaksiData = "Pemasukan" | "Pengeluaran" | "Hutang" | "Piutang";
-
 export type Transaksi = {
   id: string;
   user_id?: string | null;
