@@ -8,8 +8,15 @@ export const maxDuration = 60;
 
 const UKURAN_MAKS_FILE = 8 * 1024 * 1024;
 const MODEL_DEFAULT = 'gemini-3.8-flash';
-const MODEL_CADANGAN = ['gemini-3.8-flash', 'gemini-3.7-flash', 'gemini-3.6-flash', 'gemini-3.5-flash'];
-const BATAS_PER_MODEL_MS = 20_000;
+const MODEL_CADANGAN = [
+  'gemini-3.8-flash',
+  'gemini-3.6-flash',
+  'gemini-3.5-flash',
+  'gemini-3.5-flash-lite',
+  'gemini-3.1-flash-lite',
+  'gemini-3-flash-preview',
+];
+const BATAS_PER_MODEL_MS = 12_000;
 const BATAS_TOTAL_MODEL_MS = 50_000;
 const MIME_DIIZINKAN = new Set([
   'image/jpeg',

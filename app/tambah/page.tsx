@@ -200,8 +200,11 @@ export default function TambahTransaksi() {
     } catch (error) {
       const pesan = pesanError(error, "Gagal membaca struk.");
       console.error("Error scanning struk:", pesan);
+      const layananSibuk = /503|high demand|overloaded|unavailable/i.test(pesan);
       alert(
-        "Gagal membaca struk. Foto tetap terlampir, silakan isi data secara manual atau coba scan lagi.\n\nAlasan: " + pesan,
+        layananSibuk
+          ? "Layanan Google Gemini sedang sibuk. Foto tetap terlampir; silakan isi data secara manual atau coba scan lagi beberapa menit."
+          : "Gagal membaca struk. Foto tetap terlampir, silakan isi data secara manual atau coba scan lagi.\n\nAlasan: " + pesan,
       );
     } finally {
       setLoadingScan(false);
