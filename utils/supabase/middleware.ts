@@ -1,10 +1,10 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
+import { bacaKonfigurasiSupabase } from "./config";
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
+const { url: supabaseUrl, anonKey: supabaseAnonKey } = bacaKonfigurasiSupabase();
 
-const RUTE_PUBLIK = ["/login"];
+const RUTE_PUBLIK = ["/login", "/lupa-password", "/reset-password"];
 const RUTE_API = "/api";
 
 export async function updateSession(request: NextRequest) {
@@ -41,7 +41,9 @@ export async function updateSession(request: NextRequest) {
     return redirect;
   }
 
-  if (user && rutePublik) {
+  // Hanya /login yang dialihkan saat sudah masuk. Halaman reset password
+  // tetap harus bisa dibuka meskipun sesi pemulihan sudah terbentuk.
+  if (user && pathname === "/login") {
     const url = request.nextUrl.clone();
     url.pathname = "/";
     url.search = "";

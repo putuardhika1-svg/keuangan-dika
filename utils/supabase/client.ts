@@ -1,7 +1,7 @@
 import { createBrowserClient } from "@supabase/ssr";
+import { bacaKonfigurasiSupabase } from "./config";
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
+const { url: supabaseUrl, anonKey: supabaseAnonKey } = bacaKonfigurasiSupabase();
 
 export function createClient() {
   return createBrowserClient(supabaseUrl, supabaseAnonKey);

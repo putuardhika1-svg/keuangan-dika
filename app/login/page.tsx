@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/utils/supabase";
 import { Loader2 } from "lucide-react";
@@ -103,9 +104,14 @@ export default function Login() {
             </div>
 
             <div>
-              <label htmlFor="password" className="font-mono text-[10px] uppercase tracking-[0.16em] text-muted">
-                Password
-              </label>
+              <div className="flex items-baseline justify-between gap-3">
+                <label htmlFor="password" className="font-mono text-[10px] uppercase tracking-[0.16em] text-muted">
+                  Password
+                </label>
+                <Link href="/lupa-password" className="text-xs font-medium text-muted transition-colors hover:text-ink">
+                  Lupa password?
+                </Link>
+              </div>
               <input
                 id="password"
                 type="password"

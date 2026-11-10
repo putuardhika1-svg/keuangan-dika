@@ -8,6 +8,7 @@ import { supabase } from '@/utils/supabase';
 const WAKTU_TIMEOUT = 15 * 60 * 1000;
 const INTERVAL_CEK = 30 * 1000;
 const AKTIVITAS = ['mousemove', 'mousedown', 'keydown', 'scroll', 'touchstart'];
+const RUTE_TANPA_AUTO_LOGOUT = ['/login', '/lupa-password', '/reset-password'];
 
 export default function AutoLogout() {
     const router = useRouter();
@@ -17,7 +18,7 @@ export default function AutoLogout() {
 
     useEffect(() => {
         aktivitasTerakhir.current = Date.now();
-        if (pathname === '/login') sedangLogout.current = false;
+        if (RUTE_TANPA_AUTO_LOGOUT.includes(pathname)) sedangLogout.current = false;
 
         const catatAktivitas = () => {
             aktivitasTerakhir.current = Date.now();
@@ -28,7 +29,7 @@ export default function AutoLogout() {
         const cekIdle = async () => {
             if (sedangLogout.current) return;
             if (Date.now() - aktivitasTerakhir.current < WAKTU_TIMEOUT) return;
-            if (pathname === '/login') return;
+            if (RUTE_TANPA_AUTO_LOGOUT.includes(pathname)) return;
 
             sedangLogout.current = true;
             await supabase.auth.signOut();

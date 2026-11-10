@@ -3,6 +3,7 @@ import { GoogleGenAI } from '@google/genai';
 import { createClient } from '@supabase/supabase-js';
 import { KATEGORI } from '@/utils/kategori';
 import { pesanError } from '@/utils/format';
+import { bacaKonfigurasiSupabase } from '@/utils/supabase/config';
 
 export const maxDuration = 60;
 
@@ -196,13 +197,17 @@ function normalisasiHasil(mentah: unknown) {
 
 export async function POST(req: NextRequest) {
   try {
-    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-    const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+    let supabaseUrl = '';
+    let supabaseAnonKey = '';
+
+    try {
+      ({ url: supabaseUrl, anonKey: supabaseAnonKey } = bacaKonfigurasiSupabase());
+    } catch (error) {
+      return NextResponse.json({ error: pesanError(error) }, { status: 500 });
+    }
+
     const apiKey = process.env.GEMINI_API_KEY;
 
-    if (!supabaseUrl || !supabaseAnonKey) {
-      return NextResponse.json({ error: 'Konfigurasi Supabase belum lengkap.' }, { status: 500 });
-    }
     if (!apiKey) {
       return NextResponse.json({ error: 'Konfigurasi Gemini API belum lengkap.' }, { status: 500 });
     }
@@ -228,13 +233,41 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Akses ditolak. Sesi Anda tidak valid." }, { status: 401 });
     }
 
-    if (!bolehMeminta(user.id)) {
+    // Limiter utama: tabel scan_kuota lewat RPC, sehingga tetap berlaku
+    // antar instance server. Limiter in-memory hanya menjadi cadangan
+    // kalau migration terbaru belum dijalankan.
+    const supabaseUser = createClient(supabaseUrl, supabaseAnonKey, {
+      global: { headers: { Authorization: `Bearer ${token}` } },
+      auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false },
+    });
+
+    const { data: bolehScan, error: errorKuota } = await supabaseUser.rpc('consume_scan_kuota');
+
+    if (errorKuota) {
+      console.warn('Kuota scan database tidak tersedia, memakai limiter in-memory.', errorKuota.message);
+      if (!bolehMeminta(user.id)) {
+        return NextResponse.json(
+          { error: "Terlalu banyak permintaan scan. Coba lagi dalam satu menit." },
+          { status: 429, headers: { 'Retry-After': '60', 'Cache-Control': 'no-store' } }
+        );
+      }
+    } else if (bolehScan === false) {
       return NextResponse.json(
         { error: "Terlalu banyak permintaan scan. Coba lagi dalam satu menit." },
-        { status: 429 }
+        { status: 429, headers: { 'Retry-After': '60', 'Cache-Control': 'no-store' } }
       );
     }
     // ==========================================
+
+    const contentLength = Number(req.headers.get('content-length') ?? '0');
+    const batasBody = UKURAN_MAKS_FILE + 1024 * 1024;
+
+    if (Number.isFinite(contentLength) && contentLength > batasBody) {
+      return NextResponse.json(
+        { error: "Ukuran file maksimal 8 MB" },
+        { status: 413, headers: { 'Cache-Control': 'no-store' } }
+      );
+    }
 
     const formData = await req.formData();
     const file = formData.get("file");
@@ -295,9 +328,17 @@ export async function POST(req: NextRequest) {
     });
   } catch (error) {
     console.error("API Error:", error);
+
+    const detail = pesanError(error, '');
+    const layananSibuk = /503|high demand|overloaded|service unavailable|unavailable|timeout|timed out|deadline|aborted/i.test(detail);
+
     return NextResponse.json(
-      { error: pesanError(error, "Gagal memproses gambar") },
-      { status: 500 }
+      {
+        error: layananSibuk
+          ? "Layanan AI sedang sibuk (overloaded). Coba lagi beberapa menit."
+          : "Gagal memproses gambar. Silakan coba lagi.",
+      },
+      { status: layananSibuk ? 503 : 500, headers: { 'Cache-Control': 'no-store' } }
     );
   }
 }

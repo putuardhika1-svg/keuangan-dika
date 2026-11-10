@@ -9,12 +9,33 @@ export function formatRupiah(angka: number): string {
 
 export function toNumber(value: unknown): number {
   if (typeof value === 'number') return Number.isFinite(value) ? value : 0;
-  if (typeof value === 'string') {
-    const bersih = value.replace(/[^\d,-]/g, '').replace(',', '.');
-    const hasil = Number.parseFloat(bersih);
-    return Number.isFinite(hasil) ? hasil : 0;
+  if (typeof value !== 'string') return 0;
+
+  const teks = value.trim();
+  if (!teks) return 0;
+
+  const negatif = teks.includes('-');
+  const angka = teks.replace(/[^\d,.]/g, '');
+  if (!angka) return 0;
+
+  const pemisahTerakhir = Math.max(angka.lastIndexOf(','), angka.lastIndexOf('.'));
+  let bersih = angka;
+
+  if (pemisahTerakhir !== -1) {
+    const digitSetelahPemisah = angka.length - pemisahTerakhir - 1;
+
+    if (digitSetelahPemisah > 0 && digitSetelahPemisah <= 2) {
+      const depan = angka.slice(0, pemisahTerakhir).replace(/[.,]/g, '');
+      const belakang = angka.slice(pemisahTerakhir + 1);
+      bersih = `${depan}.${belakang}`;
+    } else {
+      bersih = angka.replace(/[.,]/g, '');
+    }
   }
-  return 0;
+
+  const hasil = Number.parseFloat(bersih);
+  if (!Number.isFinite(hasil)) return 0;
+  return negatif ? -Math.abs(hasil) : hasil;
 }
 
 export function getBulanTahun(tanggalStr: string): string {
@@ -78,10 +99,27 @@ export function daftarPeriode(tanggalList: string[]): string[] {
 }
 
 export function buatId(): string {
-  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
-    return crypto.randomUUID();
+  const cryptoApi = typeof globalThis.crypto !== 'undefined' ? globalThis.crypto : undefined;
+
+  if (cryptoApi && typeof cryptoApi.randomUUID === 'function') {
+    return cryptoApi.randomUUID();
   }
-  return `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+
+  const bytes = new Uint8Array(16);
+
+  if (cryptoApi && typeof cryptoApi.getRandomValues === 'function') {
+    cryptoApi.getRandomValues(bytes);
+  } else {
+    for (let i = 0; i < bytes.length; i++) {
+      bytes[i] = Math.floor(Math.random() * 256);
+    }
+  }
+
+  bytes[6] = (bytes[6] & 0x0f) | 0x40;
+  bytes[8] = (bytes[8] & 0x3f) | 0x80;
+
+  const hex = Array.from(bytes, (byte) => byte.toString(16).padStart(2, '0')).join('');
+  return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
 }
 
 export function sanitizeCsvCell(value: unknown): string {

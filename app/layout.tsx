@@ -1,27 +1,31 @@
 import type { Metadata } from "next";
-import { IBM_Plex_Mono, IBM_Plex_Sans, Newsreader } from "next/font/google";
+import localFont from "next/font/local";
 import "./globals.css";
 import { Suspense } from "react";
 
 import AutoLogout from "@/components/AutoLogout";
 
-const sans = IBM_Plex_Sans({
-  subsets: ["latin"],
-  weight: ["400", "500", "600"],
+const sans = localFont({
+  src: [
+    { path: "./fonts/ibm-plex-sans-latin.woff2", weight: "400 600", style: "normal" },
+  ],
   variable: "--font-plex-sans",
   display: "swap",
 });
 
-const mono = IBM_Plex_Mono({
-  subsets: ["latin"],
-  weight: ["400", "500"],
+const mono = localFont({
+  src: [
+    { path: "./fonts/ibm-plex-mono-400-latin.woff2", weight: "400", style: "normal" },
+    { path: "./fonts/ibm-plex-mono-500-latin.woff2", weight: "500", style: "normal" },
+  ],
   variable: "--font-plex-mono",
   display: "swap",
 });
 
-const serif = Newsreader({
-  subsets: ["latin"],
-  weight: ["400", "500"],
+const serif = localFont({
+  src: [
+    { path: "./fonts/newsreader-latin.woff2", weight: "400 500", style: "normal" },
+  ],
   variable: "--font-newsreader",
   display: "swap",
 });

@@ -16,6 +16,7 @@ export default function Pengaturan() {
     const [email, setEmail] = useState("");
     const [nama, setNama] = useState("");
     const [telepon, setTelepon] = useState("");
+    const [passwordLama, setPasswordLama] = useState("");
     const [passwordBaru, setPasswordBaru] = useState("");
     const [tema, setTema] = useState("terang");
 
@@ -60,18 +61,37 @@ export default function Pengaturan() {
         setPesan({ tipe: "", teks: "" });
 
         try {
-            const { error: errorMeta } = await supabase.auth.updateUser({
-                data: { nama: nama, telepon: telepon, tema: tema }
-            });
-            if (errorMeta) throw errorMeta;
-
             if (passwordBaru.trim() !== "") {
+                if (passwordBaru.trim().length < 8) {
+                    throw new Error("Kata sandi baru minimal 8 karakter.");
+                }
+                if (!passwordLama) {
+                    throw new Error("Masukkan kata sandi saat ini untuk mengganti kata sandi.");
+                }
+
+                // Verifikasi ulang sebelum mengganti password agar sesi
+                // yang dibajak tidak bisa langsung mengubah kredensial.
+                const { error: errorReauth } = await supabase.auth.signInWithPassword({
+                    email,
+                    password: passwordLama,
+                });
+                if (errorReauth) {
+                    throw new Error("Kata sandi saat ini salah.");
+                }
+
                 const { error: errorPass } = await supabase.auth.updateUser({
                     password: passwordBaru
                 });
                 if (errorPass) throw errorPass;
+
                 setPasswordBaru("");
+                setPasswordLama("");
             }
+
+            const { error: errorMeta } = await supabase.auth.updateUser({
+                data: { nama: nama, telepon: telepon, tema: tema }
+            });
+            if (errorMeta) throw errorMeta;
 
             terapkanTema(tema);
             setPesan({ tipe: "sukses", teks: "Profil dan pengaturan berhasil diperbarui!" });
@@ -91,9 +111,11 @@ export default function Pengaturan() {
     const ubahTema = async (pilihanTema: string) => {
         setTema(pilihanTema);
         terapkanTema(pilihanTema);
-        await supabase.auth.updateUser({
+
+        const { error } = await supabase.auth.updateUser({
             data: { tema: pilihanTema }
         });
+        if (error) console.warn("Preferensi tema gagal disimpan:", error.message);
     };
 
     const daftarPeriodeTersedia = daftarPeriode(semuaTransaksi.map((t) => String(t.tanggal ?? "")));
@@ -255,17 +277,34 @@ export default function Pengaturan() {
                     />
                   </div>
 
-                  <div className="border-t border-line pt-6">
-                    <label htmlFor="passwordBaru" className="font-mono text-[10px] uppercase tracking-[0.16em] text-muted">Kata sandi baru</label>
-                    <input
-                      id="passwordBaru"
-                      type="password"
-                      value={passwordBaru}
-                      onChange={(e) => setPasswordBaru(e.target.value)}
-                      placeholder="Biarkan kosong jika tidak diubah"
-                      className="mt-1.5 w-full rounded-md border border-line bg-surface px-3 py-2.5 text-sm text-ink outline-none placeholder:text-muted focus:border-accent"
-                    />
-                    <p className="mt-2 text-xs text-muted">Minimal 6 karakter.</p>
+                  <div className="space-y-5 border-t border-line pt-6">
+                    <div>
+                      <label htmlFor="passwordLama" className="font-mono text-[10px] uppercase tracking-[0.16em] text-muted">Kata sandi saat ini</label>
+                      <input
+                        id="passwordLama"
+                        type="password"
+                        autoComplete="current-password"
+                        value={passwordLama}
+                        onChange={(e) => setPasswordLama(e.target.value)}
+                        placeholder="Wajib diisi jika mengganti kata sandi"
+                        className="mt-1.5 w-full rounded-md border border-line bg-surface px-3 py-2.5 text-sm text-ink outline-none placeholder:text-muted focus:border-accent"
+                      />
+                    </div>
+
+                    <div>
+                      <label htmlFor="passwordBaru" className="font-mono text-[10px] uppercase tracking-[0.16em] text-muted">Kata sandi baru</label>
+                      <input
+                        id="passwordBaru"
+                        type="password"
+                        minLength={8}
+                        autoComplete="new-password"
+                        value={passwordBaru}
+                        onChange={(e) => setPasswordBaru(e.target.value)}
+                        placeholder="Biarkan kosong jika tidak diubah"
+                        className="mt-1.5 w-full rounded-md border border-line bg-surface px-3 py-2.5 text-sm text-ink outline-none placeholder:text-muted focus:border-accent"
+                      />
+                      <p className="mt-2 text-xs text-muted">Minimal 8 karakter. Isi kedua kolom hanya jika ingin mengganti kata sandi.</p>
+                    </div>
                   </div>
 
                   <button

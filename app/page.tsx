@@ -27,6 +27,8 @@ export default function Home() {
   const [urlBukti, setUrlBukti] = useState<string | null>(null);
   const [urlBuktiError, setUrlBuktiError] = useState<string | null>(null);
   const [userId, setUserId] = useState("");
+  const [memuatData, setMemuatData] = useState(true);
+  const [errorData, setErrorData] = useState("");
 
   // STATE FILTER
   const [filterAktif, setFilterAktif] = useState("Semua");
@@ -110,6 +112,9 @@ export default function Home() {
   };
 
   const fetchData = async (idUser?: string) => {
+    setMemuatData(true);
+    setErrorData("");
+
     try {
       let query = supabase
         .from('transaksi')
@@ -124,6 +129,9 @@ export default function Home() {
       setTransaksi((data ?? []) as Transaksi[]);
     } catch (error) {
       console.error("Gagal memuat transaksi:", error);
+      setErrorData(pesanError(error, "Gagal memuat transaksi. Coba muat ulang halaman ini."));
+    } finally {
+      setMemuatData(false);
     }
   };
 
@@ -590,6 +598,12 @@ export default function Home() {
             </div>
           </header>
 
+          {errorData && (
+            <div className="mt-6 border-l-2 border-negative pl-3 text-sm text-negative" role="alert">
+              {errorData}
+            </div>
+          )}
+
           <section className="mt-8 border-y border-line py-8">
             <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-muted">Saldo kas · akumulasi</p>
             <div className="mt-2 flex flex-wrap items-end justify-between gap-4">
@@ -616,7 +630,9 @@ export default function Home() {
               </div>
               <div>
                 <dt className="font-mono text-[10px] uppercase tracking-[0.16em] text-muted">Catatan</dt>
-                <dd className="angka mt-1 font-mono text-sm text-ink">{transaksiPeriode.length} transaksi</dd>
+                <dd className="angka mt-1 font-mono text-sm text-ink">
+                  {memuatData ? "Memuat..." : `${transaksiPeriode.length} transaksi`}
+                </dd>
               </div>
             </dl>
           </section>
@@ -629,7 +645,9 @@ export default function Home() {
                   <span className="font-mono text-[10px] uppercase tracking-[0.14em] text-muted">{periodeAktif}</span>
                 </div>
 
-                {dataGrafik.length === 0 ? (
+                {memuatData ? (
+                  <p className="mt-8 border-t border-line pt-8 text-sm text-muted">Memuat data...</p>
+                ) : dataGrafik.length === 0 ? (
                   <p className="mt-8 border-t border-line pt-8 text-sm text-muted">Belum ada pengeluaran pada periode ini.</p>
                 ) : (
                   <div className="mt-6 h-64 w-full">
@@ -685,7 +703,9 @@ export default function Home() {
                   </div>
                 </div>
 
-                {transaksiDifilter.length === 0 ? (
+                {memuatData ? (
+                  <div className="px-5 py-14 text-center text-sm text-muted sm:px-6">Memuat transaksi...</div>
+                ) : transaksiDifilter.length === 0 ? (
                   <div className="px-5 py-14 text-center sm:px-6">
                     <p className="text-sm text-muted">Belum ada catatan pada periode ini.</p>
                     <Link href="/tambah" className="mt-4 inline-flex items-center gap-2 rounded-md bg-ink px-4 py-2 text-sm font-medium text-paper transition-opacity hover:opacity-90">
