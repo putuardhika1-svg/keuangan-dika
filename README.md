@@ -45,6 +45,7 @@ npm run build
 - Ganti kata sandi memerlukan kata sandi saat ini.
 - Tersedia alur lupa password (`/lupa-password`) dan reset password (`/reset-password`).
 - Font IBM Plex dan Newsreader disimpan lokal di `app/fonts`, jadi `next dev` tidak bergantung pada akses ke Google Fonts.
+- Jika scan struk gagal karena Gemini `high demand`, ganti `GEMINI_MODEL` ke `gemini-3.6-flash` atau `gemini-3.5-flash`. Fallback otomatis juga mencoba model lain.
 
 ## Keamanan: anon key atau service_role?
 
